@@ -178,7 +178,7 @@ form textarea{min-height:60px;resize:vertical}
     <button class="link" id="restore">Restore or import</button>
     <button class="link" id="csv">Download spreadsheet (CSV)</button>
     <button class="link" id="sharing">Sharing</button>
-    <span style="color:var(--muted);font-size:13px;align-self:center">Version 5</span>
+    <span style="color:var(--muted);font-size:13px;align-self:center">Version 6</span>
   </div>
 </div>
 
@@ -208,78 +208,128 @@ form textarea{min-height:60px;resize:vertical}
 "use strict";
 
 /* ================= settings you can edit ================= */
-// Default sections: [Group, Section, sub-section suggestions]. Once Sharing is on, the "Sections" tab in your Google Sheet replaces these.
+// Default sections: [Group, Section (" > " for deeper levels), sub-section suggestions, where it's kept].
+// Once Sharing is on, the "Sections" tab in your Google Sheet replaces these.
 const DEFAULT_ROWS = [
-  ["Adult Fiction", "General Fiction", ""],
-  ["Adult Fiction", "Classics", ""],
-  ["Adult Fiction", "Thrillers", ""],
-  ["Adult Fiction", "Women Authors", ""],
-  ["Adult Fiction", "Women Crime", ""],
-  ["Adult Fiction", "Historical Fiction", ""],
-  ["Adult Fiction", "Wartime Fiction", ""],
-  ["Adult Fiction", "Science Fiction", ""],
-  ["Adult Fiction", "Fantasy", ""],
-  ["Kids' Fiction", "Babies & Toddlers (about 0-3)", ""],
-  ["Kids' Fiction", "Early Readers (about 3-6)", ""],
-  ["Kids' Fiction", "Young Readers (about 6-9)", ""],
-  ["Kids' Fiction", "Confident Readers (about 9-12)", ""],
-  ["Kids' Fiction", "Young Adult (about 12-16)", ""],
-  ["Adult Non-Fiction", "Biographies & Memoirs", ""],
-  ["Adult Non-Fiction", "Royals", ""],
-  ["Adult Non-Fiction", "Politics", ""],
-  ["Adult Non-Fiction", "Business", ""],
-  ["Adult Non-Fiction", "Self-Help", ""],
-  ["Adult Non-Fiction", "Humour", ""],
-  ["Adult Non-Fiction", "Religion, Myths & Folklore", ""],
-  ["Adult Non-Fiction", "True Crime", ""],
-  ["Adult Non-Fiction", "History & Prehistory", ""],
-  ["Adult Non-Fiction", "War (Factual)", ""],
-  ["Adult Non-Fiction", "British Isles", "London, England (type the county), Scotland, Wales, Northern Ireland, Republic of Ireland, Isle of Man, Channel Islands, Isle of Wight"],
-  ["Adult Non-Fiction", "International Travel", "Europe, Asia, Africa, North America, South America, Australia & Oceania, Middle East, Polar"],
-  ["Adult Non-Fiction", "Gardening", ""],
-  ["Adult Non-Fiction", "Animals", ""],
-  ["Adult Non-Fiction", "Tree-Mendous (Trees)", ""],
-  ["Adult Non-Fiction", "Oceans", ""],
-  ["Adult Non-Fiction", "Lakes & Rivers", ""],
-  ["Adult Non-Fiction", "Art", ""],
-  ["Adult Non-Fiction", "Painting", ""],
-  ["Adult Non-Fiction", "Music", ""],
-  ["Adult Non-Fiction", "Antiques", ""],
-  ["Adult Non-Fiction", "Crafts", "Knitting, Crochet, Sewing, Embroidery, Flower Arranging, Woodwork, Other"],
-  ["Adult Non-Fiction", "Cookery", "British, Chinese, Indian, Italian, French, Mexican, Middle Eastern, Thai & South-East Asian, Vegetarian & Vegan, Diet & Free-From, Baking, General"],
-  ["Adult Non-Fiction", "Transport", "Motorcycles, Cars, Trains & Railways, Trams, Buses, Planes, Ships & Boats"],
-  ["Adult Non-Fiction", "Science", "Physics, Chemistry, Biology, Engineering, Maths, Philosophy, Sociology, Psychology"],
-  ["Adult Non-Fiction", "Medical", ""],
-  ["Kids' Non-Fiction", "Science", ""],
-  ["Kids' Non-Fiction", "History", ""],
-  ["Kids' Non-Fiction", "Art", ""],
-  ["Kids' Non-Fiction", "People", ""],
-  ["Kids' Non-Fiction", "Places", ""],
-  ["Kids' Non-Fiction", "Cars", ""],
-  ["Kids' Non-Fiction", "Animals", ""],
-  ["Kids' Non-Fiction", "GCSE & A Level Textbooks", "Maths, English, Science, History, Geography, Languages, Other"],
-  ["Foreign Languages", "Adult Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
-  ["Foreign Languages", "Kids' Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
-  ["Foreign Languages", "Adult Non-Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
-  ["Foreign Languages", "Kids' Non-Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
-  ["Foreign Languages", "Adult Religion", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
-  ["Foreign Languages", "Kids' Religion", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
-  ["Reference", "English Dictionaries & Thesauruses", ""],
-  ["Reference", "Bilingual & Foreign Dictionaries", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
-  ["Reference", "Learning English (EFL)", ""],
-  ["Other Categories", "Jigsaws", ""],
-  ["Other Categories", "Games & Puzzles", ""],
-  ["Other Categories", "Atlases, Maps & Walks", ""],
-  ["Other Categories", "Magazines", "Fishing, Motorcycles, Cars, Trains & Buses, Other"],
-  ["Other Categories", "Westerns & Horses", ""],
-  ["Miscellaneous", "Old Books (pre-1950s or cloth-bound)", ""],
-  ["Miscellaneous", "Other Misc.", ""]
+  ["Adult Fiction", "General Fiction", "", ""],
+  ["Adult Fiction", "Classics", "", ""],
+  ["Adult Fiction", "Poetry", "", ""],
+  ["Adult Fiction", "Plays", "", ""],
+  ["Adult Fiction", "Thrillers", "", ""],
+  ["Adult Fiction", "Women Authors", "", ""],
+  ["Adult Fiction", "Women Crime", "", ""],
+  ["Adult Fiction", "Romance", "Mills & Boon, Silhouette, People's Friend, Other", "Mills & Boon box"],
+  ["Adult Fiction", "Historical Fiction", "", ""],
+  ["Adult Fiction", "Wartime Fiction", "", ""],
+  ["Adult Fiction", "Science Fiction", "", ""],
+  ["Adult Fiction", "Fantasy", "", ""],
+  ["Kids' Fiction", "Babies & Toddlers (about 0-3)", "", ""],
+  ["Kids' Fiction", "Early Readers (about 3-6)", "", ""],
+  ["Kids' Fiction", "Young Readers (about 6-9)", "", ""],
+  ["Kids' Fiction", "Confident Readers (about 9-12)", "", ""],
+  ["Kids' Fiction", "Young Adult (about 12-16)", "", ""],
+  ["Adult Non-Fiction", "Biographies & Memoirs", "", ""],
+  ["Adult Non-Fiction", "Royals", "", ""],
+  ["Adult Non-Fiction", "Politics", "", ""],
+  ["Adult Non-Fiction", "Business", "", ""],
+  ["Adult Non-Fiction", "Self-Help", "", ""],
+  ["Adult Non-Fiction", "Self-Help > Parenting", "", ""],
+  ["Adult Non-Fiction", "Humour", "", ""],
+  ["Adult Non-Fiction", "Religion, Myths & Folklore", "", ""],
+  ["Adult Non-Fiction", "True Crime", "", ""],
+  ["Adult Non-Fiction", "War Stories (Factual)", "", ""],
+  ["Adult Non-Fiction", "History", "", ""],
+  ["Adult Non-Fiction", "History > British Rulers", "", ""],
+  ["Adult Non-Fiction", "History > Prehistoric Britain", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Pre-Roman Britain", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Roman Britain", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Anglo-Saxon Britain", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Viking Britain", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Norman Britain", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Early Plantagenets & Magna Carta", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > 14th Century", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Wars of the Roses", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Tudors & Stuarts", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Georgians", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Victorian & Edwardian", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > 20th Century", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > 20th Century > WW1", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > 20th Century > WW2", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > 20th Century > Cold War", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > Military History", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > American History", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "History > American Military History", "", "Storage room (upstairs)"],
+  ["Adult Non-Fiction", "British Isles > England", "Bedfordshire, Berkshire, Bristol, Buckinghamshire, Cambridgeshire, Cheshire, Cornwall, Cumbria, Derbyshire, Devon, Dorset, Durham, Essex, Gloucestershire, Hampshire, Herefordshire, Hertfordshire, Kent, Lancashire, Leicestershire, Lincolnshire, Greater Manchester, Merseyside, Norfolk, Northamptonshire, Northumberland, Nottinghamshire, Oxfordshire, Rutland, Shropshire, Somerset, Staffordshire, Suffolk, Surrey, Sussex, Tyne & Wear, Warwickshire, West Midlands, Wiltshire, Worcestershire, Yorkshire, Chilterns, Cotswolds, Dartmoor & Exmoor, Lake District, New Forest, Norfolk Broads, Peak District, South Downs, Yorkshire Dales & Moors, England (general)", ""],
+  ["Adult Non-Fiction", "British Isles > London", "", ""],
+  ["Adult Non-Fiction", "British Isles > Scotland", "Edinburgh, Glasgow, Highlands, Islands, Borders, Scotland (general)", ""],
+  ["Adult Non-Fiction", "British Isles > Wales", "North Wales, Mid Wales, South Wales, Snowdonia, Pembrokeshire, Wales (general)", ""],
+  ["Adult Non-Fiction", "British Isles > Ireland", "Northern Ireland, Republic of Ireland", ""],
+  ["Adult Non-Fiction", "British Isles > Other Islands", "Isle of Man, Channel Islands, Isle of Wight, Isles of Scilly", ""],
+  ["Adult Non-Fiction", "Local Interest", "", ""],
+  ["Adult Non-Fiction", "International Travel", "Europe, Asia, Africa, North America, South America, Australia & Oceania, Middle East, Polar", ""],
+  ["Adult Non-Fiction", "Gardening", "", ""],
+  ["Adult Non-Fiction", "Animals", "", ""],
+  ["Adult Non-Fiction", "Tree-Mendous (Trees)", "", ""],
+  ["Adult Non-Fiction", "Oceans", "", ""],
+  ["Adult Non-Fiction", "Lakes & Rivers", "", ""],
+  ["Adult Non-Fiction", "Art", "", ""],
+  ["Adult Non-Fiction", "Painting", "", ""],
+  ["Adult Non-Fiction", "Photography", "", ""],
+  ["Adult Non-Fiction", "Music", "", ""],
+  ["Adult Non-Fiction", "Antiques", "", ""],
+  ["Adult Non-Fiction", "Sport", "Football, Cricket, Rugby, Golf, Tennis, Motorsport, Horse Racing, Boxing, Athletics, Cycling, Other", ""],
+  ["Adult Non-Fiction", "Crafts", "Knitting, Crochet, Sewing, Embroidery, Flower Arranging, Woodwork, Other", ""],
+  ["Adult Non-Fiction", "Cookery", "British, Chinese, Indian, Italian, French, Mexican, Middle Eastern, Thai & South-East Asian, Vegetarian & Vegan, Diet & Free-From, Baking, General", ""],
+  ["Adult Non-Fiction", "Transport", "Motorcycles, Cars, Trains & Railways, Trams, Buses, Planes, Ships & Boats", ""],
+  ["Adult Non-Fiction", "Science", "Physics, Chemistry, Biology, Engineering, Maths, Philosophy, Sociology, Psychology", ""],
+  ["Adult Non-Fiction", "Medical", "", ""],
+  ["Kids' Non-Fiction", "Science", "", ""],
+  ["Kids' Non-Fiction", "Space", "", ""],
+  ["Kids' Non-Fiction", "Dinosaurs", "", ""],
+  ["Kids' Non-Fiction", "Nature", "", ""],
+  ["Kids' Non-Fiction", "Animals", "", ""],
+  ["Kids' Non-Fiction", "History", "", ""],
+  ["Kids' Non-Fiction", "People", "", ""],
+  ["Kids' Non-Fiction", "Places", "", ""],
+  ["Kids' Non-Fiction", "Art", "", ""],
+  ["Kids' Non-Fiction", "Cars", "", ""],
+  ["Kids' Non-Fiction", "Sport", "", ""],
+  ["Kids' Non-Fiction", "Activities & Crafts", "", ""],
+  ["Kids' Non-Fiction", "Early Learning", "", ""],
+  ["Kids' Non-Fiction", "Reference & Encyclopedias", "", ""],
+  ["Kids' Non-Fiction", "GCSE & A Level Textbooks", "Maths, English, Science, History, Geography, Languages, Other", ""],
+  ["Foreign Languages", "Adult Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Punjabi, Urdu, Arabic, Romanian, Russian, Ukrainian, Japanese, Mandarin, Other", ""],
+  ["Foreign Languages", "Kids' Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Punjabi, Urdu, Arabic, Romanian, Russian, Ukrainian, Japanese, Mandarin, Other", ""],
+  ["Foreign Languages", "Adult Non-Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Punjabi, Urdu, Arabic, Romanian, Russian, Ukrainian, Japanese, Mandarin, Other", ""],
+  ["Foreign Languages", "Kids' Non-Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Punjabi, Urdu, Arabic, Romanian, Russian, Ukrainian, Japanese, Mandarin, Other", ""],
+  ["Foreign Languages", "Adult Religion", "French, German, Spanish, Italian, Polish, Portuguese, Punjabi, Urdu, Arabic, Romanian, Russian, Ukrainian, Japanese, Mandarin, Other", ""],
+  ["Foreign Languages", "Kids' Religion", "French, German, Spanish, Italian, Polish, Portuguese, Punjabi, Urdu, Arabic, Romanian, Russian, Ukrainian, Japanese, Mandarin, Other", ""],
+  ["Foreign Languages", "Bilingual Dictionaries", "French, German, Spanish, Italian, Polish, Portuguese, Punjabi, Urdu, Arabic, Romanian, Russian, Ukrainian, Japanese, Mandarin, Other", ""],
+  ["Reference", "English Dictionaries & Thesauruses", "", ""],
+  ["Reference", "Scottish Dictionaries & Thesauruses", "", ""],
+  ["Reference", "Welsh Dictionaries & Thesauruses", "", ""],
+  ["Reference", "Cornish Dictionaries & Thesauruses", "", ""],
+  ["Reference", "Irish & Gaelic Dictionaries & Thesauruses", "", ""],
+  ["Reference", "Learner's Dictionaries", "", ""],
+  ["Reference", "Visual Dictionaries", "", ""],
+  ["Other Categories", "Jigsaws", "Small, 250 pieces, 500 pieces, 1000 pieces, Large", ""],
+  ["Other Categories", "Games & Puzzles", "", ""],
+  ["Other Categories", "Atlases", "", ""],
+  ["Other Categories", "Maps & Walks > UK", "", ""],
+  ["Other Categories", "Maps & Walks > International", "", ""],
+  ["Other Categories", "Magazines", "Fishing, Motorcycles, Cars, Trains & Buses, Other", ""],
+  ["Other Categories", "Westerns & Horses", "", ""],
+  ["Miscellaneous", "Old Books (pre-1950s or cloth-bound)", "", ""],
+  ["Miscellaneous", "Other Misc.", "", ""]
 ];
-// The first version's two-letter codes, moved to full names automatically
-const MIGRATE = {"AF": "Adult Fiction > General Fiction","MT": "Adult Fiction > Thrillers","WA": "Adult Fiction > Women Authors","WC": "Adult Fiction > Women Crime","CL": "Adult Fiction > Classics","OB": "Miscellaneous > Old Books (pre-1950s or cloth-bound)","WT": "Adult Fiction > Wartime Fiction","WH": "Other Categories > Westerns & Horses","CR": "Adult Non-Fiction > Crafts","GP": "Other Categories > Games & Puzzles","MG": "Other Categories > Magazines","MP": "Other Categories > Atlases, Maps & Walks","K1": "Kids' Fiction > Babies & Toddlers (about 0-3)","K2": "Kids' Fiction > Young Readers (about 6-9)","K3": "Kids' Fiction > Early Readers (about 3-6)","K4": "Kids' Fiction > Confident Readers (about 9-12)","YA": "Kids' Fiction > Young Adult (about 12-16)","MC": "Miscellaneous > Other Misc."};
-const toSection = ([g, n, subs]) => ({path: g ? `${g} > ${n}` : n, group: g || "", name: n, subs: subs ? String(subs).split(",").map(x => x.trim()).filter(Boolean) : []});
+// The first version's two-letter codes, and older section names
+const MIGRATE = {"AF": "Adult Fiction > General Fiction", "MT": "Adult Fiction > Thrillers", "WA": "Adult Fiction > Women Authors", "WC": "Adult Fiction > Women Crime", "CL": "Adult Fiction > Classics", "OB": "Miscellaneous > Old Books (pre-1950s or cloth-bound)", "WT": "Adult Fiction > Wartime Fiction", "WH": "Other Categories > Westerns & Horses", "CR": "Adult Non-Fiction > Crafts", "GP": "Other Categories > Games & Puzzles", "MG": "Other Categories > Magazines", "MP": "Other Categories > Atlases", "K1": "Kids' Fiction > Babies & Toddlers (about 0-3)", "K2": "Kids' Fiction > Young Readers (about 6-9)", "K3": "Kids' Fiction > Early Readers (about 3-6)", "K4": "Kids' Fiction > Confident Readers (about 9-12)", "YA": "Kids' Fiction > Young Adult (about 12-16)", "MC": "Miscellaneous > Other Misc."};
+const RENAME = {"Adult Non-Fiction > History & Prehistory": "Adult Non-Fiction > History", "Adult Non-Fiction > War (Factual)": "Adult Non-Fiction > War Stories (Factual)", "Reference > Bilingual & Foreign Dictionaries": "Foreign Languages > Bilingual Dictionaries", "Reference > Learning English (EFL)": "Reference > Learner's Dictionaries", "Other Categories > Atlases, Maps & Walks": "Other Categories > Atlases", "Adult Non-Fiction > British Isles": "Adult Non-Fiction > British Isles > England"};
+const ISLES = {"London":"London","Scotland":"Scotland","Wales":"Wales","Northern Ireland":"Ireland","Republic of Ireland":"Ireland","Isle of Man":"Other Islands","Channel Islands":"Other Islands","Isle of Wight":"Other Islands"};
+const toSection = ([g, n, subs, where]) => { n = String(n).split(">").map(x => x.trim()).filter(Boolean).join(" > ");
+  return {path: g ? `${g} > ${n}` : n, group: g || "", name: n, subs: subs ? String(subs).split(",").map(x => x.trim()).filter(Boolean) : [], where: where || ""}; };
 const DEFAULT_SECTIONS = DEFAULT_ROWS.map(toSection);
-let SECTIONS = (() => { try { const x = JSON.parse(localStorage.getItem("sections2") || "null"); if (Array.isArray(x) && x.length && x[0].path) return x; } catch {} return DEFAULT_SECTIONS; })();
+let SECTIONS = (() => { try { const x = JSON.parse(localStorage.getItem("sections3") || "null"); if (Array.isArray(x) && x.length && x[0].path) return x; } catch {} return DEFAULT_SECTIONS; })();
 // Learned "this author's books go here" rules, keyed by normalised author name
 let RULES = (() => { try { const r = JSON.parse(localStorage.getItem("rules") || "{}") || {}; for (const k in r) if (MIGRATE[r[k].section]) r[k].section = MIGRATE[r[k].section]; return r; } catch { return {}; } })();
 // Surnames that go straight to Major Thrillers
@@ -298,17 +348,34 @@ const fmtDate = iso => { if (!iso) return ""; const d = new Date(iso); return d.
 const nowISO = () => new Date().toISOString();
 const hasSection = p => SECTIONS.some(x => x.path === p);
 const secInfo = p => SECTIONS.find(x => x.path === p);
-const secShort = p => secInfo(p)?.name || String(p || "").split(" > ").pop();
+const secShort = p => String(p || "").split(" > ").pop();
+// Moves old section names to current ones, but only once the new one exists in your list
+function remap(section, sub){
+  section = String(section || ""); sub = String(sub || "");
+  if (MIGRATE[section]) section = MIGRATE[section];
+  const to = RENAME[section];
+  if (to && !hasSection(section) && hasSection(to)){
+    const isle = "Adult Non-Fiction > British Isles > " + ISLES[sub];
+    if (section === "Adult Non-Fiction > British Isles" && ISLES[sub] && hasSection(isle)){ section = isle; if (ISLES[sub] === sub) sub = ""; }
+    else section = to;
+  }
+  return [section, sub];
+}
 const secName = p => p ? (hasSection(p) ? p : `${p} (old section)`) : "";
 function sectionOptions(cur){
   const groups = [];
   for (const x of SECTIONS){ let g = groups.find(y => y.name === x.group); if (!g) groups.push(g = {name: x.group, list: []}); g.list.push(x); }
-  const opt = x => `<option value="${esc(x.path)}"${cur === x.path ? " selected" : ""}>${esc(x.name)}</option>`;
+  // Deeper levels are indented under their parent when the parent is in the list too
+  const opt = x => {
+    const parts = x.name.split(" > "), parent = (x.group ? x.group + " > " : "") + parts.slice(0, -1).join(" > ");
+    const label = parts.length > 1 && hasSection(parent) ? "\u00a0\u00a0\u00a0".repeat(parts.length - 1) + parts[parts.length - 1] : x.name;
+    return `<option value="${esc(x.path)}"${cur === x.path ? " selected" : ""}>${esc(label)}</option>`;
+  };
   return `<option value="">Not set</option>` + groups.map(g => g.name ? `<optgroup label="${esc(g.name)}">${g.list.map(opt).join("")}</optgroup>` : g.list.map(opt).join("")).join("")
     + (cur && !hasSection(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)} (old section)</option>` : "");
 }
 function findSection(name, groupHint){
-  const n = name.toLowerCase(), c = SECTIONS.filter(x => x.name.toLowerCase().startsWith(n));
+  const n = name.toLowerCase(), c = SECTIONS.filter(x => secShort(x.name).toLowerCase().startsWith(n));
   if (!c.length) return "";
   if (groupHint){ const g = c.find(x => x.group.toLowerCase().startsWith(groupHint.toLowerCase())); if (g) return g.path; }
   return c[0].path;
@@ -374,7 +441,7 @@ function suggestSection(f, subjects){
   const s = subjects.join(" | ").toLowerCase();
   const pick = (name, group, sub = "") => ({section: findSection(name, group), subsection: sub});
   const first = pairs => { for (const [re, v] of pairs) if (re.test(s)) return v; return ""; };
-  if (f.kind === "Jigsaw") return pick("Jigsaws");
+  if (f.kind === "Jigsaw"){ const pc = (String(f.title || "").match(/(\d{3,4})\s*(?:pc|pieces?)/i) || [])[1]; return pick("Jigsaws", "", ["250","500","1000"].includes(pc) ? pc + " pieces" : ""); }
   if (f.kind === "Game" || f.kind === "Puzzle book" || /crossword|puzzles/.test(s)) return pick("Games & Puzzles");
   if (f.kind === "Magazine") return pick("Magazines", "", first([[/fishing|angling/,"Fishing"],[/motorcycl/,"Motorcycles"],[/automobile|\bcars\b/,"Cars"],[/railroad|railway|train|\bbus/,"Trains & Buses"]]));
   if (f.kind === "Map" || /atlases|\bmaps\b|walking|hiking/.test(s)) return pick("Atlases, Maps & Walks");
@@ -385,38 +452,57 @@ function suggestSection(f, subjects){
     if (/young adult/.test(s)) return pick("Young Adult", "Kids");
     if (/nonfiction|non-fiction/.test(s) || !/fiction|stories|picture|board books/.test(s)){
       if (/examination|textbook|gcse|study guides/.test(s)) return pick("GCSE");
-      const n = first([[/science|nature/,"Science"],[/history/,"History"],[/\bart\b|drawing/,"Art"],[/biograph/,"People"],[/geograph|travel|countries/,"Places"],[/automobile|\bcars\b|vehicles/,"Cars"],[/animal|pets|birds|wildlife/,"Animals"]]);
+      const n = first([[/space|planets|astronomy/,"Space"],[/dinosaur/,"Dinosaurs"],[/sport/,"Sport"],[/activity books|handicraft|cooking/,"Activities & Crafts"],[/encyclopedia|dictionar|atlases/,"Reference & Encyclopedias"],[/alphabet|counting|concept/,"Early Learning"],[/nature|plants|weather/,"Nature"],[/science/,"Science"],[/history/,"History"],[/\bart\b|drawing/,"Art"],[/biograph/,"People"],[/geograph|travel|countries/,"Places"],[/automobile|\bcars\b|vehicles/,"Cars"],[/animal|pets|birds|wildlife/,"Animals"]]);
       return n ? pick(n, "Kids' Non") : {section: "", subsection: ""};
     }
     if (/picture books|board books|baby|toddler/.test(s)) return pick("Babies & Toddlers");
+    if (/beginning readers|readers \(primary\)|early readers|phonics/.test(s)) return pick("Early Readers");
     return pick("Confident Readers");
   }
   if (f.year && +f.year < 1950) return pick("Old Books");
   if (/western stories|westerns|horses|horsemanship|equestrian/.test(s)) return pick("Westerns & Horses");
 
+  if (/mills|silhouette|harlequin/i.test(f.publisher || "")) return pick("Romance", "", /silhouette/i.test(f.publisher) ? "Silhouette" : "Mills & Boon");
+  if (/poetry|poems/.test(s)) return pick("Poetry");
+  if (/drama|plays\b/.test(s) && !/history/.test(s)) return pick("Plays");
   if (/fiction|novel|stories/.test(s) && !/nonfiction/.test(s)){
+    if (/romance|love stories/.test(s)) return pick("Romance");
     if (/science fiction/.test(s)) return pick("Science Fiction");
     if (/fantasy/.test(s)) return pick("Fantasy");
     if (/world war|war stories|war fiction/.test(s)) return pick("Wartime Fiction");
     if (/historical fiction/.test(s)) return pick("Historical Fiction");
-    if (/detective|crime|mystery|thriller|suspense|espionage|\bspy\b/.test(s) || MAJOR_THRILLERS.includes(surname(f.author))) return pick("Thrillers");
+    if (/detective|crime|mystery|thriller|suspense|espionage|\bspy\b|horror|ghost stories/.test(s) || MAJOR_THRILLERS.includes(surname(f.author))) return pick("Thrillers");
     return pick("General Fiction");
   }
   if (MAJOR_THRILLERS.includes(surname(f.author))) return pick("Thrillers");
 
   if (/travel|guidebooks/.test(s)){
-    const bi = first([[/london/,"London"],[/scotland/,"Scotland"],[/wales/,"Wales"],[/northern ireland/,"Northern Ireland"],[/ireland/,"Republic of Ireland"],[/isle of man/,"Isle of Man"],[/channel islands/,"Channel Islands"],[/isle of wight/,"Isle of Wight"],[/england|great britain|british isles/,"-"]]);
-    if (bi) return pick("British Isles", "", bi === "-" ? "" : bi);
+    const bi = first([[/london/,["London",""]],[/scotland/,["Scotland",""]],[/wales/,["Wales",""]],[/northern ireland/,["Ireland","Northern Ireland"]],[/ireland/,["Ireland","Republic of Ireland"]],
+      [/isle of man/,["Other Islands","Isle of Man"]],[/channel islands/,["Other Islands","Channel Islands"]],[/isle of wight/,["Other Islands","Isle of Wight"]],[/england|great britain|british isles/,["England",""]]]);
+    if (bi){
+      if (bi[0] === "England"){ const county = (secInfo(findSection("England", "Adult Non"))?.subs || []).find(c => s.includes(c.toLowerCase().split(" & ")[0])); return pick("England", "Adult Non", county || ""); }
+      return pick(bi[0], "Adult Non", bi[1]);
+    }
     return pick("International Travel", "", first([[/europe|france|spain|italy|germany|greece|portugal/,"Europe"],[/asia|china|japan|india/,"Asia"],[/africa/,"Africa"],[/united states|canada|mexico/,"North America"],[/south america|brazil|peru|argentina/,"South America"],[/australia|new zealand/,"Australia & Oceania"],[/middle east/,"Middle East"],[/arctic|antarctic|polar/,"Polar"]]));
   }
   const NF = [
     [/cook|recipe|baking/, "Cookery", [[/chinese/,"Chinese"],[/india/,"Indian"],[/ital/,"Italian"],[/french/,"French"],[/mexic/,"Mexican"],[/thai|asian/,"Thai & South-East Asian"],[/vegetarian|vegan/,"Vegetarian & Vegan"],[/gluten|diet|reducing/,"Diet & Free-From"],[/baking|bread|cakes/,"Baking"],[/british|english/,"British"]]],
     [/knitting|crochet|sewing|needlework|embroider|flower arrang|woodwork|handicraft/, "Crafts", [[/knit/,"Knitting"],[/crochet/,"Crochet"],[/sewing|needlework/,"Sewing"],[/embroider/,"Embroidery"],[/flower/,"Flower Arranging"],[/woodwork/,"Woodwork"]]],
     [/motorcycl|automobile|railroad|railway|locomotive|tramway|\bbuses\b|aircraft|airplane|aeronautic|ships|boats/, "Transport", [[/motorcycl/,"Motorcycles"],[/automobile/,"Cars"],[/railroad|railway|locomotive/,"Trains & Railways"],[/tram/,"Trams"],[/\bbus/,"Buses"],[/aircraft|airplane|aeronautic/,"Planes"],[/ship|boat/,"Ships & Boats"]]],
+    [/personal narratives/, "War Stories (Factual)"],
+    [/prehistor|stone age|bronze age|neolithic/, "Prehistoric Britain"], [/iron age|celts/, "Pre-Roman Britain"], [/roman britain|romans.*britain|hadrian/, "Roman Britain"],
+    [/anglo-saxon/, "Anglo-Saxon Britain"], [/viking/, "Viking Britain"], [/norman|1066/, "Norman Britain"], [/plantagenet|magna carta/, "Early Plantagenets"],
+    [/14th century|fourteenth century|black death/, "14th Century"], [/wars of the roses/, "Wars of the Roses"],
+    [/tudor|stuart|henry viii|elizabeth i\b|civil war, 1642/, "Tudors & Stuarts"], [/georgian|18th century/, "Georgians"], [/victorian|edwardian|19th century/, "Victorian & Edwardian"],
+    [/world war, 1914|world war i\b|first world war/, "WW1"], [/world war, 1939|world war ii|second world war/, "WW2"], [/cold war/, "Cold War"],
+    [/united states.*military|american.*military/, "American Military History"], [/united states.*history|american history/, "American History"],
+    [/kings and rulers|monarchs/, "British Rulers"], [/royal family|princes|princess/, "Royals"],
+    [/parenting|child rearing/, "Parenting"], [/sports?\b|football|cricket|golf|rugby|tennis/, "Sport", [[/football|soccer/,"Football"],[/cricket/,"Cricket"],[/rugby/,"Rugby"],[/golf/,"Golf"],[/tennis/,"Tennis"],[/motor ?sport|racing cars|formula/,"Motorsport"],[/horse racing/,"Horse Racing"],[/boxing/,"Boxing"],[/athletics/,"Athletics"],[/cycling/,"Cycling"]]],
+    [/photograph/, "Photography"],
     [/biograph|memoir/, "Biographies"], [/kings and rulers|queens|royal/, "Royals"], [/politic|government/, "Politics"],
     [/religio|bible|christian|islam|buddhis|mytholog|folklore/, "Religion"], [/true crime|criminals|murder|crime/, "True Crime"],
     [/self-help|self-actualization|personal development/, "Self-Help"], [/business|management|economics|finance/, "Business"],
-    [/humou?r|wit and/, "Humour"], [/world war|military|\bwar\b|battles/, "War (Factual)"], [/history|archaeolog|prehistor|antiquities/, "History & Prehistory"],
+    [/humou?r|wit and/, "Humour"], [/military|\bwar\b|battles/, "Military History"], [/history|archaeolog|antiquities/, "History"],
     [/gardening|horticulture/, "Gardening"], [/\btrees\b|forests/, "Tree-Mendous"], [/ocean|marine|\bsea\b|seashore/, "Oceans"],
     [/rivers|lakes|canals|waterways/, "Lakes & Rivers"], [/animal|pets|dogs|cats|birds|wildlife|zoology/, "Animals"],
     [/antique|collectibles/, "Antiques"], [/music/, "Music"], [/painting|watercolou?r/, "Painting"], [/\bart\b|artists|sculpture|drawing/, "Art"],
@@ -488,12 +574,12 @@ function learnRule(author, section, genre, subsection){
 function applyConfig(c){
   if (!c) return;
   if (Array.isArray(c.sections) && c.sections.length && c.sections[0].path){
-    SECTIONS = c.sections.map(x => ({path: String(x.path), group: String(x.group || ""), name: String(x.name || x.path), subs: Array.isArray(x.subs) ? x.subs.map(String) : []}));
-    localStorage.setItem("sections2", JSON.stringify(SECTIONS));
+    SECTIONS = c.sections.map(x => ({path: String(x.path), group: String(x.group || ""), name: String(x.name || x.path), subs: Array.isArray(x.subs) ? x.subs.map(String) : [], where: String(x.where || "")}));
+    localStorage.setItem("sections3", JSON.stringify(SECTIONS));
   }
   if (Array.isArray(c.rules)){
     const r = {};
-    for (const x of c.rules) if (x && x.author) r[norm(x.author)] = {author: x.author, section: MIGRATE[x.section] || x.section || "", subsection: x.subsection || "", genre: x.genre || ""};
+    for (const x of c.rules) if (x && x.author){ const [sec, sub] = remap(x.section, x.subsection); r[norm(x.author)] = {author: x.author, section: sec, subsection: sub, genre: x.genre || ""}; }
     RULES = r; localStorage.setItem("rules", JSON.stringify(RULES));
   }
   render();
@@ -825,6 +911,7 @@ function showItem(id, opts = {}){
     </div>
     <dl>
       ${d.section ? `<dt>Section</dt><dd>${esc(secName(d.section))}${d.subsection ? ` > ${esc(d.subsection)}` : ""}</dd>` : ""}
+      ${secInfo(d.section)?.where ? `<dt>Kept</dt><dd><b>${esc(secInfo(d.section).where)}</b></dd>` : ""}
       ${d.genre ? `<dt>Genre</dt><dd>${esc(d.genre)}</dd>` : ""}
       ${d.publisher || d.year ? `<dt>Published</dt><dd>${esc([d.publisher, d.year].filter(Boolean).join(", "))}</dd>` : ""}
       ${d.barcode ? `<dt>Barcode</dt><dd>${esc(d.barcode)}</dd>` : ""}
@@ -1210,7 +1297,7 @@ $("#toast-undo").addEventListener("click", () => { const f = undoFn; undoFn = nu
     idb = await openDB();
     const all = await new Promise((res, rej) => { const r = idb.transaction("items").objectStore("items").getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     const moved = [];
-    for (const d of all){ if (MIGRATE[d.section]){ d.section = MIGRATE[d.section]; moved.push(d); } items.set(d.id, d); }
+    for (const d of all){ const [sec, sub] = remap(d.section, d.subsection); if (sec !== (d.section || "") || sub !== (d.subsection || "")){ d.section = sec; d.subsection = sub; moved.push(d); } items.set(d.id, d); }
     if (moved.length) await tx("items", "readwrite", st => moved.forEach(d => st.put(d)));
     render(); backupNag();
     showSyncStatus();

@@ -54,10 +54,18 @@ The app can keep several phones in step through a Google Sheet you own. The othe
 
 **Your categories live in the sheet.** Besides *Stock*, the script makes two more tabs:
 
-- **Sections**: one row per section, with three columns. *Group* is the umbrella (Adult Fiction, Kids' Non-Fiction…). *Section* is the shelf (Women Crime, Cookery…). *Sub-sections* is optional: a comma-separated list of suggestions offered on the phone (Italian, Indian, Vegetarian & Vegan…). People can still type their own sub-section, such as a county name. A book's section is stored written out in full, like `Adult Fiction > Women Crime`, so it's obvious in the spreadsheet. Add, rename, reorder or delete rows when the shop gets rearranged, and the phones follow within a minute. Items still using a removed section show it as "(old section)" until you change them.
+- **Sections**: one row per section, with four columns:
+  - *Group* is the umbrella (Adult Fiction, Kids' Non-Fiction…).
+  - *Section* is the shelf. For deeper levels, write them with `>`, as in `History > 20th Century > WW2`; it can go as deep as you need. On the phone these show indented under their parent (when the parent has its own row).
+  - *Sub-sections* is optional: comma-separated suggestions offered on the phone, such as cuisines, sports, languages, or counties under `British Isles > England`. People can still type their own.
+  - *Where it's kept* is optional, for anything not on the shop floor, such as `Storage room (upstairs)` or `Mills & Boon box`. The phone shows it in bold on the item, so whoever looks it up knows where to go.
+
+  A book's section is stored written out in full, like `Adult Non-Fiction > History > Roman Britain`. Add, rename, reorder or delete rows when the shop gets rearranged, and the phones follow within a minute. Items in a removed section show "(old section)" until you change them.
 - **Authors**: which section, sub-section and genre each author's books normally go in. The app fills this in as you work, and you can correct or add rows by hand.
 
 You can also edit the *Stock* tab directly. Fix a section, genre or title in a cell and the phones pick it up. Don't edit the `count`, `id`, `updated` or `log` columns; let the app handle those. You can add your own extra columns too, and they'll be left alone.
+
+**Getting a newer built-in section list:** when the app is updated with new sections, use **Shop Stock → Load the updated section list (keeps a backup)**. Your current tab is renamed *Sections backup (date)*, the new list goes in, and books in sections that were renamed move across automatically. Anything you'd added yourself is still in the backup tab, ready to copy back in.
 
 **After a big find-and-replace** (say you rename a section and update every book in it), use the **Shop Stock** menu at the top of the sheet → **Send sheet changes to the phones**. Find-and-replace doesn't always count as an edit, so this makes sure every phone catches up. The menu appears after you reload the sheet once.
 
