@@ -63,7 +63,13 @@ The app can keep several phones in step through a Google Sheet you own. The othe
   A book's section is stored written out in full, like `Adult Non-Fiction > History > Roman Britain`. Add, rename, reorder or delete rows when the shop gets rearranged, and the phones follow within a minute. Items in a removed section show "(old section)" until you change them.
 - **Authors**: which section, sub-section and genre each author's books normally go in. The app fills this in as you work, and you can correct or add rows by hand.
 
-You can also edit the *Stock* tab directly. Fix a section, genre or title in a cell and the phones pick it up. Don't edit the `count`, `id`, `updated` or `log` columns; let the app handle those. You can add your own extra columns too, and they'll be left alone.
+You can also work in the *Stock* tab directly:
+
+- **Edit** a title, section, genre or anything else, and the phones pick it up within a minute.
+- **Add** a book by typing a new row with at least a title (an ISBN in the barcode column helps). Leave `id` blank: the script fills it in on the next sync, with a count of 1 unless you've typed a different one.
+- **Remove** a book by deleting its whole row (right-click the row number → Delete row). It disappears from every phone, as if it was never there. Deleting a book in the app removes its row from the sheet the same way.
+- Leave `id`, `updated` and `log` alone. You can add your own extra columns, and they'll be left untouched. If your sheet has an old `deleted` column, it's no longer used and you can delete it.
+- The script adds two hidden tabs, `_ids` and `_removed`, to keep track of removals. Leave those be.
 
 **Getting a newer built-in section list:** when the app is updated with new sections, use **Shop Stock → Load the updated section list (keeps a backup)**. Your current tab is renamed *Sections backup (date)*, the new list goes in, and books in sections that were renamed move across automatically. Anything you'd added yourself is still in the backup tab, ready to copy back in.
 
