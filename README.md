@@ -7,7 +7,7 @@ It runs entirely in your phone's browser. There's no server, no account and no c
 ## Put it on GitHub Pages
 
 1. Create a new repository on GitHub, for example `shop-stock`. It can be public or private (private Pages needs a paid plan).
-2. Upload everything in this folder: `index.html`, `manifest.webmanifest`, `icon-180.png`, `icon-512.png` and this README. On GitHub that's **Add file → Upload files**.
+2. Upload everything in this folder: `index.html`, `manifest.webmanifest`, `icon-180.png`, `icon-512.png` and this README. `Code.gs` can go in too for safekeeping; it isn't used by the website itself. On GitHub that's **Add file → Upload files**.
 3. Go to **Settings → Pages**. Under *Build and deployment*, choose **Deploy from a branch**, pick `main` and `/ (root)`, then **Save**.
 4. After a minute or two the site appears at `https://<your-username>.github.io/shop-stock/`.
 5. Open that address on your phone, then add it to your home screen:
@@ -23,9 +23,38 @@ Opening it from the home-screen icon is worth doing. It runs full-screen, and on
 - **Publisher pages and covers** are read on the phone itself with Tesseract (text recognition). The first time, it downloads about 10 MB of language data, which the browser then keeps. It pulls out any ISBN (including old 9-digit SBNs), the publisher, the "first published" year and the edition. With no ISBN, it searches Open Library using the words it read and lets you pick the match.
 - **Genre and section** are suggested from the subjects the book databases return. To change which authors count as Major Thrillers, edit the `MAJOR_THRILLERS` list near the top of `index.html`. Your shop's section codes are in `SECTIONS`, just above it.
 
+## Share between phones (Google Sheet)
+
+The app can keep several phones in step through a Google Sheet you own. The other volunteer doesn't need a Google account, and the sheet doubles as a stock spreadsheet anyone you share it with can read.
+
+**One-off setup (about 10 minutes, on a computer is easiest):**
+
+1. Create a new Google Sheet, called something like *Shop Stock*.
+2. In the sheet, go to **Extensions → Apps Script**. Delete what's there and paste in the whole of `Code.gs`.
+3. On the line `const SECRET = "change-this-to-your-shop-code";`, change the text in quotes to your own shop code: any word or phrase. Save (the disk icon).
+4. Click **Deploy → New deployment**. Click the cog next to *Select type* and choose **Web app**. Set *Execute as* to **Me** and *Who has access* to **Anyone**. Click **Deploy**.
+5. Google asks you to authorise it. Choose your account, then **Advanced → Go to … (unsafe)** → **Allow**. This warning appears because it's your own unpublished script; it only gets access to this sheet.
+6. Copy the **Web app URL** it gives you.
+
+**Connecting the phones:**
+
+1. On your phone, open the app, tap **Sharing**, paste the web app URL, type your shop code, and tap **Connect**. Anything you've already scanned goes up to the sheet.
+2. Tap **Copy setup link for another phone** and send it to the other volunteer. It contains the shop code, so only send it to people you trust.
+3. On their phone, they open the app (ideally from the home-screen icon), tap **Sharing**, paste the setup link, and tap **Connect**. Opening the setup link directly in their browser works too. On iPhone, though, the home-screen app keeps its own separate storage from Safari, so pasting the link into Sharing inside the home-screen app is the reliable way.
+
+**How syncing behaves:**
+
+- Each phone checks the sheet every 45 seconds while the app is open, and straight after any change.
+- Phones send *actions* ("one in", "one out"), not whole records, so two people scanning the same book at the same time both count correctly.
+- With no signal, changes wait on the phone and send once it's back online. The status line under the totals shows if anything is waiting.
+- The **Stock** tab in the sheet shows every item. You can read it, filter it or share it read-only, but make changes through the app. Edits typed straight into the sheet can be overwritten by the next sync.
+- Deleted records stay in the sheet with a 1 in the *deleted* column, so other phones know to remove them.
+
+**If you change `Code.gs` later:** go to **Deploy → Manage deployments**, click the pencil, choose **New version**, then **Deploy**. This keeps the same web app URL. A brand-new deployment would give a new URL, which every phone would need.
+
 ## Your data
 
-- Everything is stored on the phone, in that browser, using IndexedDB. It doesn't sync between devices.
+- Everything is stored on the phone, in that browser, using IndexedDB. With Sharing switched on, it's also kept in your Google Sheet.
 - **Back up** downloads a `.json` file with everything, history included. **Restore or import** loads it back in, on the same phone or a new one.
 - **Download spreadsheet** gives a CSV for Excel or Google Sheets. Restore also accepts a CSV with the same column names, so data exported from the earlier Claude version can come across.
 - The app nags you once there are 10+ items and you haven't backed up for two weeks.

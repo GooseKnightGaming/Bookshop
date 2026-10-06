@@ -51,6 +51,8 @@ header h1{font:650 30px/1.1 var(--serif);margin:0 0 6px;letter-spacing:-.01em}
 .stats{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:15px;margin:0}
 .stats b{color:var(--ink);font-size:17px}
 
+.sync{margin:6px 0 0;font-size:14px;color:var(--green)}
+.sync.warn{color:var(--out)}
 .banner{margin:16px 0 0;padding:12px 14px;border-radius:10px;background:var(--warn-soft);color:var(--warn-ink);font-size:15px}
 .banner[hidden]{display:none}
 .banner button{background:none;border:0;padding:0;color:inherit;font-weight:700;text-decoration:underline}
@@ -154,6 +156,7 @@ form textarea{min-height:60px;resize:vertical}
   <header>
     <h1>Shop Stock</h1>
     <p class="stats" id="stats"></p>
+    <p class="sync" id="sync" hidden></p>
   </header>
   <p class="banner" id="banner" hidden></p>
 
@@ -173,6 +176,7 @@ form textarea{min-height:60px;resize:vertical}
     <button class="link" id="backup">Back up</button>
     <button class="link" id="restore">Restore or import</button>
     <button class="link" id="csv">Download spreadsheet (CSV)</button>
+    <button class="link" id="sharing">Sharing</button>
   </div>
 </div>
 
@@ -338,38 +342,227 @@ let idb = null;
 const items = new Map();
 function openDB(){
   return new Promise((res, rej) => {
-    const r = indexedDB.open("shop-stock", 1);
-    r.onupgradeneeded = () => r.result.createObjectStore("items", {keyPath: "id"});
+    const r = indexedDB.open("shop-stock", 2);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", {keyPath: "id"});
+      if (!db.objectStoreNames.contains("outbox")) db.createObjectStore("outbox", {autoIncrement: true});
+    };
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
 }
-function tx(mode, fn){
-  return new Promise((res, rej) => { const t = idb.transaction("items", mode); fn(t.objectStore("items")); t.oncomplete = res; t.onerror = () => rej(t.error); });
+function tx(store, mode, fn){
+  return new Promise((res, rej) => { const t = idb.transaction(store, mode); fn(t.objectStore(store)); t.oncomplete = res; t.onerror = () => rej(t.error); });
+}
+function outboxAll(){
+  return new Promise((res, rej) => {
+    const list = [], r = idb.transaction("outbox").objectStore("outbox").openCursor();
+    r.onsuccess = () => { const c = r.result; if (c){ list.push({key: c.key, op: c.value}); c.continue(); } else res(list); };
+    r.onerror = () => rej(r.error);
+  });
 }
 let persistAsked = false;
-async function save(id, data){
-  items.set(id, data); render();
-  if (!persistAsked){ persistAsked = true; navigator.storage?.persist?.().catch(() => {}); }
-  try { await tx("readwrite", s => s.put({...data, id})); }
-  catch { banner("A change didn't save on this phone. Your storage may be full."); }
-}
-async function saveMany(list){
+async function putLocal(list){
+  list = [].concat(list);
   for (const d of list) items.set(d.id, d);
   render();
-  await tx("readwrite", s => list.forEach(d => s.put(d)));
+  if (!persistAsked){ persistAsked = true; navigator.storage?.persist?.().catch(() => {}); }
+  try { await tx("items", "readwrite", s => list.forEach(d => s.put(d))); }
+  catch { banner("A change didn't save on this phone. Your storage may be full."); }
 }
-async function remove(id){ items.delete(id); render(); try { await tx("readwrite", s => s.delete(id)); } catch {} }
+async function delLocal(ids){
+  ids = [].concat(ids);
+  for (const id of ids) items.delete(id);
+  render();
+  try { await tx("items", "readwrite", s => ids.forEach(id => s.delete(id))); } catch {}
+}
+async function queue(ops){
+  if (!syncCfg) return;
+  ops = [].concat(ops);
+  try { await tx("outbox", "readwrite", s => ops.forEach(op => s.add(op))); } catch {}
+  scheduleSync();
+}
 
+// The same rules run on the phone and in the Google Sheet script.
+function applyAdjust(d, delta, at, undo){
+  if (!delta) return false;
+  d.count = +d.count || 0; d.inTotal = +d.inTotal || 0; d.outTotal = +d.outTotal || 0;
+  d.log = Array.isArray(d.log) ? d.log : [];
+  if (undo){
+    const type = delta > 0 ? "out" : "in", i = d.log.findIndex(l => l.a === type);
+    if (i >= 0) d.log.splice(i, 1);
+    if (delta > 0){ d.count += delta; d.outTotal = Math.max(0, d.outTotal - delta); }
+    else { d.count = Math.max(0, d.count + delta); d.inTotal = Math.max(0, d.inTotal + delta); }
+    return true;
+  }
+  if (delta < 0 && d.count <= 0) return false;
+  d.count = Math.max(0, d.count + delta);
+  if (delta > 0){ d.inTotal += delta; d.lastIn = at; } else { d.outTotal -= delta; d.lastOut = at; }
+  d.log = [{a: delta > 0 ? "in" : "out", n: Math.abs(delta), d: at}, ...d.log].slice(0, 25);
+  return true;
+}
+function createItem(d){ putLocal(d); queue({t: "create", item: d}); }
+function updateItem(id, fields){ putLocal({...items.get(id), ...fields, updated: nowISO()}); queue({t: "update", id, fields}); }
+function deleteItem(id){ delLocal(id); queue({t: "delete", id}); }
+function restoreItems(list){ list = [].concat(list); putLocal(list); queue(list.map(d => ({t: "restore", item: d}))); }
+function adjustItem(id, delta, undo){
+  const cur = items.get(id); if (!cur) return false;
+  const d = structuredClone(cur), at = nowISO();
+  if (!applyAdjust(d, delta, at, undo)) return false;
+  d.updated = at;
+  putLocal(d); queue({t: "adjust", id, delta, at, undo: !!undo});
+  return true;
+}
 function adjust(id, delta){
-  const cur = items.get(id); if (!cur) return;
-  if (delta < 0 && !(cur.count > 0)) return;
-  const d = structuredClone(cur), t = nowISO();
-  d.count = Math.max(0, (d.count || 0) + delta);
-  if (delta > 0){ d.inTotal = (d.inTotal || 0) + delta; d.lastIn = t; } else { d.outTotal = (d.outTotal || 0) - delta; d.lastOut = t; }
-  d.updated = t;
-  d.log = [{a: delta > 0 ? "in" : "out", n: Math.abs(delta), d: t}, ...(d.log || [])].slice(0, 25);
-  save(id, d);
-  toast(delta > 0 ? `Added one: ${d.title}` : `Marked one out: ${d.title}`, () => { save(id, cur); if (!$("#scrim").hidden) showItem(id); });
+  const title = items.get(id)?.title || "";
+  if (!adjustItem(id, delta, false)) return;
+  toast(delta > 0 ? `Added one: ${title}` : `Marked one out: ${title}`, () => {
+    adjustItem(id, -delta, true);
+    if (!$("#scrim").hidden && items.has(id)) showItem(id);
+  });
+}
+
+/* ================= sharing between phones (Google Sheet) ================= */
+let syncCfg = null;
+try { syncCfg = JSON.parse(localStorage.getItem("syncCfg") || "null"); } catch {}
+let since = +localStorage.getItem("syncSince") || 0;
+let syncing = false, syncTimer = null, lastSync = 0, syncProblem = "";
+
+async function post(url, payload){
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const r = await fetch(url, {method: "POST", body: JSON.stringify(payload), headers: {"Content-Type": "text/plain;charset=utf-8"}, redirect: "follow", signal: ctl.signal});
+    if (!r.ok) throw new Error("http " + r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+function fromServer(it){
+  const d = {...it};
+  delete d.deleted;
+  for (const k of ["count","inTotal","outTotal"]) d[k] = parseInt(d[k], 10) || 0;
+  if (typeof d.log === "string"){ try { d.log = JSON.parse(d.log); } catch { d.log = []; } }
+  d.log = Array.isArray(d.log) ? d.log : [];
+  d.lastOut = d.lastOut || null;
+  d.key = keyOf(d.title, d.author);
+  return d;
+}
+async function takeFromServer(list, skipIds = new Set()){
+  const keep = [], gone = [];
+  for (const it of list){ if (skipIds.has(it.id)) continue; (it.deleted ? gone : keep).push(it.deleted ? it.id : fromServer(it)); }
+  if (keep.length) await putLocal(keep);
+  if (gone.length) await delLocal(gone);
+}
+function scheduleSync(ms = 1500){ clearTimeout(syncTimer); syncTimer = setTimeout(sync, ms); }
+async function sync(){
+  if (!syncCfg || !idb) return;
+  if (syncing){ scheduleSync(3000); return; }
+  syncing = true;
+  try {
+    const box = await outboxAll(), batch = box.slice(0, 150), rest = box.slice(150);
+    const res = await post(syncCfg.url, {secret: syncCfg.code, since, ops: batch.map(b => b.op)});
+    if (!res?.ok){ syncProblem = res?.error === "bad_code" ? "The shop code doesn't match the sheet. Check it under Sharing." : "The sheet sent back an error."; return; }
+    if (batch.length) await tx("outbox", "readwrite", s => batch.forEach(b => s.delete(b.key)));
+    // Anything still waiting to send keeps this phone's version for now
+    const later = await outboxAll();
+    await takeFromServer(res.items || [], new Set(later.map(b => b.op.id || b.op.item?.id)));
+    since = res.rev || since; localStorage.setItem("syncSince", String(since));
+    lastSync = Date.now(); syncProblem = "";
+    if (rest.length) scheduleSync(300);
+  } catch { syncProblem = "offline"; }
+  finally { syncing = false; showSyncStatus(); }
+}
+async function showSyncStatus(){
+  const el = $("#sync");
+  if (!syncCfg){ el.hidden = true; return; }
+  el.hidden = false;
+  const waiting = idb ? (await outboxAll().catch(() => [])).length : 0;
+  const t = lastSync ? new Date(lastSync).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"}) : "";
+  if (syncProblem === "offline") el.textContent = `Shared list: can't reach the sheet right now.${waiting ? ` ${waiting} change${waiting > 1 ? "s" : ""} waiting to send.` : ""}`;
+  else if (syncProblem) el.textContent = syncProblem;
+  else el.textContent = waiting ? `Shared list: sending ${waiting} change${waiting > 1 ? "s" : ""}…` : `Shared list: up to date${t ? ` (checked ${t})` : ""}`;
+  el.classList.toggle("warn", !!syncProblem);
+}
+setInterval(() => { if (document.visibilityState === "visible") sync(); }, 45000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); });
+window.addEventListener("online", () => sync());
+
+async function connect(url, code){
+  url = url.trim(); code = code.trim();
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) throw new Error("That doesn't look like a Google Apps Script web app link. It should start with https://script.google.com/");
+  if (!code) throw new Error("Enter the shop code from the script.");
+  let res;
+  try { res = await post(url, {secret: code, since: 0, ops: []}); }
+  catch { throw new Error("Couldn't reach the sheet. Check the link, and that the script is deployed with access for “Anyone”."); }
+  if (!res?.ok) throw new Error(res?.error === "bad_code" ? "The shop code doesn't match the one in the script." : "The sheet didn't answer properly.");
+  const server = res.items || [], serverIds = new Set(server.map(it => it.id));
+  syncCfg = {url, code}; localStorage.setItem("syncCfg", JSON.stringify(syncCfg));
+  await tx("outbox", "readwrite", s => s.clear());
+  // Anything on this phone that the sheet doesn't have yet gets sent up
+  const toSend = [...items.values()].filter(d => !serverIds.has(d.id));
+  if (toSend.length) await tx("outbox", "readwrite", s => toSend.forEach(d => s.add({t: "restore", item: d})));
+  await takeFromServer(server);
+  since = res.rev || 0; localStorage.setItem("syncSince", String(since));
+  await sync();
+  return {fromSheet: server.filter(it => !it.deleted).length, sent: toSend.length};
+}
+async function disconnect(){
+  syncCfg = null; syncProblem = ""; since = 0;
+  localStorage.removeItem("syncCfg"); localStorage.removeItem("syncSince");
+  try { await tx("outbox", "readwrite", s => s.clear()); } catch {}
+  showSyncStatus();
+}
+const setupLink = () => `${location.origin}${location.pathname}#sync=${encodeURIComponent(btoa(JSON.stringify(syncCfg)))}`;
+function parseSetupLink(text){
+  const m = String(text).match(/#sync=([^\s&]+)/); if (!m) return null;
+  try { const c = JSON.parse(atob(decodeURIComponent(m[1]))); return c?.url && c?.code ? c : null; } catch { return null; }
+}
+
+async function showSharing(msg){
+  const waiting = syncCfg && idb ? (await outboxAll().catch(() => [])).length : 0;
+  if (syncCfg){
+    openSheet(`
+      <h2 id="sheet-title">Sharing</h2>
+      <p class="by">This phone is sharing its stock list through your Google Sheet. Changes on any connected phone show up here within a minute.</p>
+      ${msg ? `<p class="note info">${esc(msg)}</p>` : ""}
+      ${syncProblem && syncProblem !== "offline" ? `<p class="note dup">${esc(syncProblem)}</p>` : ""}
+      <dl>
+        <dt>Last checked</dt><dd>${lastSync ? esc(new Date(lastSync).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"})) : "Not yet"}</dd>
+        <dt>Waiting to send</dt><dd>${waiting}</dd>
+      </dl>
+      <button class="btn primary" style="width:100%;margin-bottom:10px" data-act="now">Sync now</button>
+      <button class="btn ghost" style="width:100%;margin-bottom:10px" data-act="copy">Copy setup link for another phone</button>
+      <div class="actions"><button class="link danger" data-act="stop">Stop sharing on this phone</button></div>`, async act => {
+        if (act === "now"){ await sync(); showSharing(syncProblem ? "" : "Up to date."); }
+        if (act === "copy"){
+          const link = setupLink();
+          try { await navigator.clipboard.writeText(link); showSharing("Setup link copied. Send it to the other phone. It contains your shop code, so only send it to people you trust."); }
+          catch { prompt("Copy this setup link:", link); }
+        }
+        if (act === "stop" && confirm("Stop sharing on this phone? The stock list stays on this phone, but it won't update from the sheet any more.")){ await disconnect(); showSharing(); }
+      });
+    return;
+  }
+  openSheet(`
+    <h2 id="sheet-title">Share between phones</h2>
+    <p class="by">Connect to your Google Sheet so several phones share one stock list. The README explains how to set the sheet up.</p>
+    ${msg ? `<p class="note dup">${esc(msg)}</p>` : ""}
+    <form id="sf" autocomplete="off">
+      <label for="s-link">Setup link, or the sheet's web app link</label>
+      <input id="s-link" name="link" placeholder="https://…" required>
+      <label for="s-code">Shop code (not needed with a setup link)</label>
+      <input id="s-code" name="code">
+      <div class="formbtns"><button type="submit" class="btn primary">Connect</button></div>
+    </form>`);
+  $("#sf").onsubmit = async e => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(e.target));
+    const fromLink = parseSetupLink(v.link);
+    busy("Connecting…", "Talking to the sheet");
+    try {
+      const r = await connect(fromLink?.url || v.link, fromLink?.code || v.code);
+      showSharing(`Connected. ${r.fromSheet} item${r.fromSheet === 1 ? "" : "s"} came from the sheet${r.sent ? `, and ${r.sent} from this phone are being added to it` : ""}.`);
+    } catch (err) { showSharing(err.message); }
+  };
 }
 
 /* ================= list ================= */
@@ -472,7 +665,7 @@ function showItem(id, opts = {}){
       if (act === "next"){ closeSheet(); startScanner(); }
       if (act === "edit") showForm({...d}, {editId: id});
       if (act === "delete" && confirm(`Delete “${d.title}” completely? Its history goes too. Use this for mistakes, not for books that sold.`)){
-        remove(id); closeSheet(); toast("Record deleted", () => save(id, d));
+        deleteItem(id); closeSheet(); toast("Record deleted", () => restoreItems(d));
       }
     });
 }
@@ -528,13 +721,13 @@ function showForm(f, opts = {}){
     if (v.barcode.length === 10 && valid10(v.barcode.toUpperCase())) v.barcode = to13(v.barcode.toUpperCase());
     if (!v.title) return;
     const fields = {title: v.title, author: v.author, kind: v.kind, section: v.section, genre: v.genre, publisher: v.publisher, year: v.year, barcode: v.barcode, notes: v.notes, key: keyOf(v.title, v.author)};
-    if (editing){ save(opts.editId, {...items.get(opts.editId), ...fields, updated: nowISO()}); showItem(opts.editId); return; }
+    if (editing){ updateItem(opts.editId, fields); showItem(opts.editId); return; }
     const copies = Math.max(1, Math.min(99, parseInt(v.copies, 10) || 1));
     const bid = v.barcode ? "b-" + v.barcode : null;
     if (bid && items.has(bid)){ adjust(bid, copies); showItem(bid); return; }
     const id = bid || newId(), t = nowISO();
-    save(id, {id, ...fields, count: copies, inTotal: copies, outTotal: 0, firstIn: t, lastIn: t, lastOut: null, updated: t, log: [{a: "in", n: copies, d: t}]});
-    toast(`Added: ${v.title}`, () => remove(id));
+    createItem({id, ...fields, count: copies, inTotal: copies, outTotal: 0, firstIn: t, lastIn: t, lastOut: null, updated: t, log: [{a: "in", n: copies, d: t}]});
+    toast(`Added: ${v.title}`, () => deleteItem(id));
     if (opts.scanned) openSheet(`<h2 id="sheet-title">Added</h2><p class="by">${esc(v.title)}</p><div class="pair"><button class="btn primary" data-act="next">Scan next</button><button class="btn ghost" data-act="close">Done</button></div>`, a => { if (a === "next"){ closeSheet(); startScanner(); } });
     else { closeSheet(); backupNag(); }
   };
@@ -761,7 +954,7 @@ $("#importer").addEventListener("change", async e => {
   if (!list.length){ toast("No stock found in that file."); return; }
   const clash = list.filter(d => items.has(d.id)).length;
   if (!confirm(`Import ${list.length} records?${clash ? ` ${clash} will replace ones already here.` : ""}`)) return;
-  await saveMany(list);
+  restoreItems(list);
   toast(`Imported ${list.length} records.`);
 });
 
@@ -782,6 +975,17 @@ $("#toast-undo").addEventListener("click", () => { const f = undoFn; undoFn = nu
     const all = await new Promise((res, rej) => { const r = idb.transaction("items").objectStore("items").getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     for (const d of all) items.set(d.id, d);
     render(); backupNag();
+    showSyncStatus();
+    $("#sharing").addEventListener("click", () => showSharing());
+    const link = parseSetupLink(location.hash);
+    if (link){
+      history.replaceState(null, "", location.pathname);
+      if (confirm("Connect this phone to the shared stock list?")){
+        busy("Connecting…", "Talking to the sheet");
+        try { const r = await connect(link.url, link.code); showSharing(`Connected. ${r.fromSheet} item${r.fromSheet === 1 ? "" : "s"} came from the sheet.`); }
+        catch (err) { showSharing(err.message); }
+      }
+    } else sync();
   } catch {
     banner("This browser won't let the page save anything. Try a normal (not private) window.");
     $("#scan").disabled = $("#more").disabled = true;
