@@ -18,10 +18,13 @@ Opening it from the home-screen icon is worth doing. It runs full-screen, and on
 
 ## How it finds book details
 
-- **Barcodes** are scanned live with the camera (ZXing).
+- **Barcodes** are scanned live with the camera (ZXing). This needs the browser to be allowed to use the camera; if it isn't, use "Photo or type" instead.
 - **ISBNs** are looked up on Open Library, then Google Books. Both are free and need no key.
-- **Publisher pages and covers** are read on the phone itself with Tesseract (text recognition). The first time, it downloads about 10 MB of language data, which the browser then keeps. It pulls out any ISBN (including old 9-digit SBNs), the publisher, the "first published" year and the edition. With no ISBN, it searches Open Library using the words it read and lets you pick the match.
-- **Genre and section** are suggested from the subjects the book databases return. To change which authors count as Major Thrillers, edit the `MAJOR_THRILLERS` list near the top of `index.html`. Your shop's section codes are in `SECTIONS`, just above it.
+- **Publisher pages and covers:** take the photo with your normal camera app, then pick it from your gallery. It's read on the phone itself with Tesseract (text recognition). The first time, it downloads about 10 MB of language data, which the browser then keeps. It pulls out any ISBN (including old 9-digit SBNs), the publisher, the "first published" year and the edition. With no ISBN, it searches Open Library using the words it read and lets you pick the match.
+- **ISBNs can be typed** into the "ISBN or barcode" box, then tap Look up. If the number has a typo, it says so (the last digit is a check digit) and searches anyway.
+- **Genre and section** are first guessed from the subjects the book databases return. That's only ever rough. They don't know, for example, whether an author is a woman, so a woman's crime novel comes back as plain fiction.
+- **The app learns from you.** Whenever you save an item with a section, it remembers that author's section and genre. The next book by them fills in automatically, and the form says so. If an author writes across sections, change it on the form and the newer choice becomes the default.
+- **Same book, different ISBN:** if a new ISBN matches a title and author you already have, it offers "Count it as another copy of that". It remembers the extra ISBN, so next time either one finds the same record.
 
 ## Share between phones (Google Sheet)
 
@@ -47,8 +50,14 @@ The app can keep several phones in step through a Google Sheet you own. The othe
 - Each phone checks the sheet every 45 seconds while the app is open, and straight after any change.
 - Phones send *actions* ("one in", "one out"), not whole records, so two people scanning the same book at the same time both count correctly.
 - With no signal, changes wait on the phone and send once it's back online. The status line under the totals shows if anything is waiting.
-- The **Stock** tab in the sheet shows every item. You can read it, filter it or share it read-only, but make changes through the app. Edits typed straight into the sheet can be overwritten by the next sync.
 - Deleted records stay in the sheet with a 1 in the *deleted* column, so other phones know to remove them.
+
+**Your categories live in the sheet.** Besides *Stock*, the script makes two more tabs:
+
+- **Sections**: Code, Name and an optional Group (for example *Fiction*, *Kids*), shown in the app as *Fiction › Women Crime Authors*. Add, rename or delete rows when the shop gets rearranged, and every phone's Section list follows within a minute. Items still using a removed code show it as "(old section)" until you change them.
+- **Authors**: which section (and genre) each author's books normally go in. The app fills this in as you work, and you can correct or add rows by hand.
+
+You can also edit the *Stock* tab directly. Fix a section, genre or title in a cell and the phones pick it up. Don't edit the `count`, `id`, `updated` or `log` columns; let the app handle those. You can add your own extra columns too (say, *Shelf note*), and they'll be left alone.
 
 **If you change `Code.gs` later:** go to **Deploy → Manage deployments**, click the pencil, choose **New version**, then **Deploy**. This keeps the same web app URL. A brand-new deployment would give a new URL, which every phone would need.
 

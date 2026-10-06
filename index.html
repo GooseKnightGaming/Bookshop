@@ -195,7 +195,7 @@ form textarea{min-height:60px;resize:vertical}
   </div>
 </div>
 
-<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<input type="file" id="cam" accept="image/*" hidden>
 <input type="file" id="importer" accept=".json,.csv,application/json,text/csv" hidden>
 
 <div class="scrim" id="scrim" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"></div></div>
@@ -206,13 +206,17 @@ form textarea{min-height:60px;resize:vertical}
 "use strict";
 
 /* ================= settings you can edit ================= */
-const SECTIONS = [
-  ["AF","Adult Fiction"],["MT","Major Thrillers"],["WA","Women Authors"],["WC","Women Crime Authors"],
-  ["CL","Classics"],["OB","Old Books"],["NF","Non-Fiction"],["WT","Wartime Stories"],["WH","Western / Horseman"],
-  ["CR","Crafts"],["GP","Games, Jigsaws & Puzzles"],["MG","Magazines"],["MP","Maps"],
-  ["K1","Kids: Babies & Toddlers"],["K2","Kids: Young Readers"],["K3","Kids: Early Readers"],["K4","Kids: Confident Readers"],
-  ["YA","YA Fiction"],["KN","Kids' Non-Fiction"],["MC","Corner of Miscellany"]
+// Default sections. Once Sharing is on, the "Sections" tab in your Google Sheet replaces these.
+const DEFAULT_SECTIONS = [
+  ["AF","Adult Fiction","Fiction"],["MT","Major Thrillers","Fiction"],["WA","Women Authors","Fiction"],["WC","Women Crime Authors","Fiction"],
+  ["CL","Classics","Fiction"],["OB","Old Books",""],["NF","Non-Fiction",""],["WT","Wartime Stories",""],["WH","Western / Horseman",""],
+  ["CR","Crafts",""],["GP","Games, Jigsaws & Puzzles",""],["MG","Magazines",""],["MP","Maps",""],
+  ["K1","Babies & Toddlers","Kids"],["K2","Young Readers","Kids"],["K3","Early Readers","Kids"],["K4","Confident Readers","Kids"],
+  ["YA","YA Fiction","Kids"],["KN","Kids' Non-Fiction","Kids"],["MC","Corner of Miscellany",""]
 ];
+let SECTIONS = (() => { try { const x = JSON.parse(localStorage.getItem("sections") || "null"); if (Array.isArray(x) && x.length) return x; } catch {} return DEFAULT_SECTIONS; })();
+// Learned "this author's books go in this section" rules, keyed by normalised author name
+let RULES = (() => { try { return JSON.parse(localStorage.getItem("rules") || "{}") || {}; } catch { return {}; } })();
 // Surnames that go straight to Major Thrillers
 const MAJOR_THRILLERS = ["rankin","francis","clancy","child","grisham","patterson","baldacci","forsyth","ludlum","maclean","cussler","connelly","higgins","archer","koontz","brown","reacher"];
 const KINDS = ["Book","Jigsaw","Puzzle book","Game","Magazine","Map","Other"];
@@ -227,7 +231,10 @@ const keyOf = (t, a) => norm(t) + "|" + norm(a);
 const surname = a => norm((a || "").split(/[,;&]| and /)[0]).split(" ").pop() || "";
 const fmtDate = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("en-GB", {day:"numeric", month:"short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric"}); };
 const nowISO = () => new Date().toISOString();
-const secName = c => (SECTIONS.find(s => s[0] === c) || [, c || ""])[1];
+const hasSection = c => SECTIONS.some(x => x[0] === c);
+const secName = c => { const x = SECTIONS.find(y => y[0] === c); return x ? (x[2] ? `${x[2]} › ${x[1]}` : x[1]) : (c ? "old section, no longer in the list" : ""); };
+const sectionOptions = cur => `<option value="">Not set</option>` + SECTIONS.map(([c]) => `<option value="${esc(c)}"${cur === c ? " selected" : ""}>${esc(c)}: ${esc(secName(c))}</option>`).join("")
+  + (cur && !hasSection(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)} (old section)</option>` : "");
 const newId = () => "k-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 /* ================= ISBN + page parsing ================= */
@@ -334,7 +341,44 @@ function fromLookup(r, extra = {}){
   const f = {kind: "Book", title: r.title || "", author: r.author || "", publisher: extra.publisher || r.publisher || "",
     year: extra.year || r.year || "", barcode: extra.barcode || "", notes: extra.notes || "", genre: genreFrom(r.subjects || [])};
   f.section = suggestSection(f, r.subjects || []);
+  if (!hasSection(f.section)) f.section = "";
+  return applyRule(f);
+}
+function ruleFor(author){
+  if (!author) return null;
+  return RULES[norm(author)] || RULES[norm(String(author).split(/,|;| and | & /)[0])] || null;
+}
+function applyRule(f){
+  const r = ruleFor(f.author);
+  if (r){ if (r.section && hasSection(r.section)) f.section = r.section; if (r.genre) f.genre = r.genre; f._rule = true; }
   return f;
+}
+function learnRule(author, section, genre){
+  if (!author || !section) return;
+  const k = norm(author), cur = RULES[k];
+  if (cur && cur.section === section && (cur.genre || "") === (genre || "")) return;
+  RULES[k] = {author, section, genre: genre || ""};
+  localStorage.setItem("rules", JSON.stringify(RULES));
+  queue({t: "rule", author, section, genre: genre || ""});
+}
+function applyConfig(c){
+  if (!c) return;
+  if (Array.isArray(c.sections) && c.sections.length){
+    SECTIONS = c.sections.filter(x => x && x[0]).map(x => [String(x[0]), String(x[1] || x[0]), String(x[2] || "")]);
+    localStorage.setItem("sections", JSON.stringify(SECTIONS));
+  }
+  if (Array.isArray(c.rules)){
+    const r = {};
+    for (const x of c.rules) if (x && x.author) r[norm(x.author)] = {author: x.author, section: x.section || "", genre: x.genre || ""};
+    RULES = r; localStorage.setItem("rules", JSON.stringify(RULES));
+  }
+  render();
+}
+function findByCode(code){
+  if (!code) return null;
+  if (items.has("b-" + code)) return items.get("b-" + code);
+  for (const d of items.values()) if ((d.altCodes || "").split(",").includes(code)) return d;
+  return null;
 }
 
 /* ================= storage (on this phone) ================= */
@@ -465,6 +509,10 @@ async function sync(){
     // Anything still waiting to send keeps this phone's version for now
     const later = await outboxAll();
     await takeFromServer(res.items || [], new Set(later.map(b => b.op.id || b.op.item?.id)));
+    if (res.config){
+      applyConfig(res.config);
+      for (const b of later) if (b.op.t === "rule") RULES[norm(b.op.author)] = {author: b.op.author, section: b.op.section, genre: b.op.genre || ""};
+    }
     since = res.rev || since; localStorage.setItem("syncSince", String(since));
     lastSync = Date.now(); syncProblem = "";
     if (rest.length) scheduleSync(300);
@@ -501,6 +549,12 @@ async function connect(url, code){
   const toSend = [...items.values()].filter(d => !serverIds.has(d.id));
   if (toSend.length) await tx("outbox", "readwrite", s => toSend.forEach(d => s.add({t: "restore", item: d})));
   await takeFromServer(server);
+  // Author rules learned on this phone that the sheet doesn't have yet
+  const serverRules = new Set((res.config?.rules || []).map(x => norm(x.author)));
+  const myRules = Object.values(RULES).filter(x => !serverRules.has(norm(x.author)));
+  if (myRules.length) await tx("outbox", "readwrite", st => myRules.forEach(x => st.add({t: "rule", ...x})));
+  applyConfig(res.config);
+  for (const x of myRules) RULES[norm(x.author)] = x;
   since = res.rev || 0; localStorage.setItem("syncSince", String(since));
   await sync();
   return {fromSheet: server.filter(it => !it.deleted).length, sent: toSend.length};
@@ -583,7 +637,7 @@ function render(){
   let rows = tab === "in" ? inStock : tab === "gone" ? gone : all;
   if (query){
     const q = norm(query), raw = query.replace(/[^0-9Xx]/g, "");
-    rows = rows.filter(d => norm([d.title, d.author, d.genre, d.publisher, d.notes].join(" ")).includes(q) || (raw.length > 3 && (d.barcode || "").includes(raw)));
+    rows = rows.filter(d => norm([d.title, d.author, d.genre, d.publisher, d.notes].join(" ")).includes(q) || (raw.length > 3 && ((d.barcode || "") + "," + (d.altCodes || "")).includes(raw)));
   }
   if (tab === "gone") rows.sort((a, b) => (b.lastOut || "").localeCompare(a.lastOut || ""));
   else rows.sort((a, b) => (surname(a.author) || "zzz").localeCompare(surname(b.author) || "zzz") || norm(a.title).localeCompare(norm(b.title)));
@@ -650,6 +704,7 @@ function showItem(id, opts = {}){
       ${d.genre ? `<dt>Genre</dt><dd>${esc(d.genre)}</dd>` : ""}
       ${d.publisher || d.year ? `<dt>Published</dt><dd>${esc([d.publisher, d.year].filter(Boolean).join(", "))}</dd>` : ""}
       ${d.barcode ? `<dt>Barcode</dt><dd>${esc(d.barcode)}</dd>` : ""}
+      ${d.altCodes ? `<dt>Other ISBNs</dt><dd>${esc(d.altCodes.split(",").join(", "))}</dd>` : ""}
       ${d.notes ? `<dt>Notes</dt><dd>${esc(d.notes)}</dd>` : ""}
       <dt>First in</dt><dd>${esc(fmtDate(d.firstIn))}</dd>
       <dt>Totals</dt><dd>${d.inTotal || 0} in, ${d.outTotal || 0} out</dd>
@@ -673,67 +728,106 @@ function showItem(id, opts = {}){
 /* ================= add / edit form ================= */
 function showForm(f, opts = {}){
   const editing = !!opts.editId;
-  const match = !editing && opts.match ? `<p class="note ${opts.match.count > 0 ? "dup" : "info"}">${opts.match.count > 0 ? `Looks like one already on the shelf (${opts.match.count}).` : "Looks like one you've had before."} <button type="button" class="link" data-act="use" style="padding:0">Open that record</button></p>` : "";
+  const m = editing ? null : opts.match;
+  const codes = m ? [m.barcode, ...(m.altCodes || "").split(",")].filter(Boolean) : [];
+  const otherEdition = m && f.barcode && !codes.includes(f.barcode);
+  const match = m ? `<p class="note ${m.count > 0 ? "dup" : "info"}">${m.count > 0 ? `Looks like “${esc(m.title)}”, already on the shelf (${m.count}).` : `Looks like “${esc(m.title)}”, which you've had before.`}${otherEdition ? " It has a different ISBN, so it may be another edition." : ""}<br>
+      <button type="button" class="link" data-act="addcopy" style="padding:4px 14px 0 0">Count it as another copy of that</button><button type="button" class="link" data-act="use" style="padding:4px 0 0">Open that record</button></p>` : "";
+  const rule = !editing && f._rule ? `<p class="note info">Section filled in from earlier books by ${esc(f.author)}.</p>` : "";
   const msg = opts.msg ? `<p class="note info">${esc(opts.msg)}</p>` : "";
   openSheet(`
     <h2 id="sheet-title">${editing ? "Edit details" : "New item"}</h2>
-    ${match}${msg}
+    ${match}${rule}${msg}
     <form id="f" autocomplete="off">
-      <label for="f-title">Title</label><input id="f-title" name="title" required value="${esc(f.title)}">
+      <label for="f-barcode">ISBN or barcode</label>
+      <div style="display:flex;gap:8px"><input id="f-barcode" name="barcode" inputmode="numeric" value="${esc(f.barcode)}" placeholder="e.g. 978…">${editing ? "" : `<button type="button" class="btn ghost" data-act="lookup" style="flex:none;min-height:0;padding:10px 14px">Look up</button>`}</div>
+      <label for="f-title">Title</label><input id="f-title" name="title" value="${esc(f.title)}">
       <label for="f-author">Author (or maker)</label><input id="f-author" name="author" value="${esc(f.author)}">
       <div class="two">
         <div><label for="f-kind">Type</label><select id="f-kind" name="kind">${KINDS.map(k => `<option${(f.kind || "Book") === k ? " selected" : ""}>${k}</option>`).join("")}</select></div>
-        <div><label for="f-section">Section</label><select id="f-section" name="section"><option value="">Not set</option>${SECTIONS.map(([c, n]) => `<option value="${c}"${f.section === c ? " selected" : ""}>${c}: ${esc(n)}</option>`).join("")}</select></div>
+        <div><label for="f-section">Section</label><select id="f-section" name="section">${sectionOptions(f.section)}</select></div>
       </div>
       <label for="f-genre">Genre</label><input id="f-genre" name="genre" value="${esc(f.genre)}">
       <div class="two">
         <div><label for="f-publisher">Publisher</label><input id="f-publisher" name="publisher" value="${esc(f.publisher)}"></div>
         <div><label for="f-year">Year</label><input id="f-year" name="year" inputmode="numeric" maxlength="4" value="${esc(f.year)}"></div>
       </div>
-      <div class="two">
-        <div><label for="f-barcode">Barcode / ISBN</label><input id="f-barcode" name="barcode" inputmode="numeric" value="${esc(f.barcode)}"></div>
-        ${editing ? "" : `<div><label for="f-copies">Copies</label><input id="f-copies" name="copies" type="number" min="1" max="99" value="1"></div>`}
-      </div>
+      ${editing ? "" : `<label for="f-copies">Copies</label><input id="f-copies" name="copies" type="number" min="1" max="99" value="1" style="max-width:120px">`}
       <label for="f-notes">Notes</label><textarea id="f-notes" name="notes">${esc(f.notes)}</textarea>
       <div class="formbtns">
+        <button type="button" class="btn ghost" data-act="close">Cancel</button>
         ${editing ? "" : `<button type="button" class="btn ghost" data-act="lookup">Look it up</button>`}
         <button type="submit" class="btn primary">${editing ? "Save changes" : "Add to stock"}</button>
       </div>
     </form>`, async act => {
-      if (act === "use" && opts.match) showItem(opts.match.id, {scanned: true});
-      if (act === "lookup"){
-        const v = Object.fromEntries(new FormData($("#f")));
-        const code = v.barcode.replace(/[^0-9Xx]/g, ""), isbn = normIsbn(code) || (isISBN13(code) ? code : null);
-        if (isbn){ await lookupFlow(isbn, {}); return; }
-        const q = [v.title, v.author].join(" ").trim();
-        if (!q){ toast("Type a title, author or ISBN first."); return; }
-        const tok = busy("Looking it up…", "Searching Open Library");
-        const cands = await searchBooks(q);
-        if (tok !== sheetToken) return;
-        showPicker(cands, {publisher: v.publisher, year: v.year, notes: v.notes, barcode: v.barcode}, "", v);
+      if (act === "use" && m) showItem(m.id, {scanned: true});
+      if (act === "addcopy" && m){
+        const copies = Math.max(1, parseInt($("#f-copies")?.value, 10) || 1);
+        if (otherEdition){ const set = new Set((m.altCodes || "").split(",").filter(Boolean)); set.add(f.barcode); updateItem(m.id, {altCodes: [...set].join(",")}); }
+        adjust(m.id, copies);
+        showItem(m.id, {scanned: opts.scanned});
       }
+      if (act === "lookup") lookupFromForm();
     });
+
+  // Typing an author you've sorted before fills in their usual section
+  $("#f-author").addEventListener("change", e => {
+    const r = ruleFor(e.target.value), sec = $("#f-section"), gen = $("#f-genre");
+    if (!r) return;
+    if (r.section && hasSection(r.section) && !sec.value) sec.value = r.section;
+    if (r.genre && !gen.value) gen.value = r.genre;
+  });
+
   $("#f").onsubmit = e => {
     e.preventDefault();
     const v = Object.fromEntries(new FormData(e.target));
     for (const k of Object.keys(v)) v[k] = String(v[k]).trim();
-    v.barcode = v.barcode.replace(/[^0-9Xx]/g, "");
-    if (v.barcode.length === 10 && valid10(v.barcode.toUpperCase())) v.barcode = to13(v.barcode.toUpperCase());
-    if (!v.title) return;
+    v.barcode = v.barcode.replace(/[^0-9Xx]/g, "").toUpperCase();
+    if (v.barcode.length === 10 && valid10(v.barcode)) v.barcode = to13(v.barcode);
+    if (!v.title){ toast("Add a title first, or tap Look it up."); $("#f-title").focus(); return; }
     const fields = {title: v.title, author: v.author, kind: v.kind, section: v.section, genre: v.genre, publisher: v.publisher, year: v.year, barcode: v.barcode, notes: v.notes, key: keyOf(v.title, v.author)};
+    learnRule(v.author, v.section, v.genre);
     if (editing){ updateItem(opts.editId, fields); showItem(opts.editId); return; }
     const copies = Math.max(1, Math.min(99, parseInt(v.copies, 10) || 1));
-    const bid = v.barcode ? "b-" + v.barcode : null;
-    if (bid && items.has(bid)){ adjust(bid, copies); showItem(bid); return; }
-    const id = bid || newId(), t = nowISO();
+    const existing = findByCode(v.barcode);
+    if (existing){ adjust(existing.id, copies); showItem(existing.id); return; }
+    const id = v.barcode ? "b-" + v.barcode : newId(), t = nowISO();
     createItem({id, ...fields, count: copies, inTotal: copies, outTotal: 0, firstIn: t, lastIn: t, lastOut: null, updated: t, log: [{a: "in", n: copies, d: t}]});
     toast(`Added: ${v.title}`, () => deleteItem(id));
     if (opts.scanned) openSheet(`<h2 id="sheet-title">Added</h2><p class="by">${esc(v.title)}</p><div class="pair"><button class="btn primary" data-act="next">Scan next</button><button class="btn ghost" data-act="close">Done</button></div>`, a => { if (a === "next"){ closeSheet(); startScanner(); } });
     else { closeSheet(); backupNag(); }
   };
 }
+
+async function lookupFromForm(){
+  const v = Object.fromEntries(new FormData($("#f")));
+  for (const k of Object.keys(v)) v[k] = String(v[k]).trim();
+  // An ISBN might be in the ISBN box, or typed into the title box
+  const raw = v.barcode || (/^[\dXx\-\s]{9,17}$/.test(v.title) ? v.title : "");
+  const digits = raw.replace(/[^0-9Xx]/g, "").toUpperCase();
+  const keep = {publisher: v.publisher, year: v.year, notes: v.notes};
+  if (digits.length >= 8){
+    const isbn = normIsbn(digits, digits.length === 9);
+    if (isbn){ await lookupFlow(isbn, keep); return; }
+    if (!/^97[89]/.test(digits) && digits.length !== 10){ await lookupFlow(digits, keep); return; } // a non-book barcode
+    const tok = busy("Looking it up…", "That number doesn't check out as an ISBN, so searching for it instead");
+    const cands = await searchBooks(digits);
+    if (tok !== sheetToken) return;
+    if (cands.length){ showPicker(cands, keep, "", v); return; }
+    showForm({...v, barcode: digits, title: v.title === raw ? "" : v.title}, {msg: "That number doesn't add up as an ISBN, so it's probably got a typo. The last digit is a check digit, so one wrong digit anywhere shows up."});
+    return;
+  }
+  const q = [v.title, v.author].join(" ").trim();
+  if (!q){ toast("Type an ISBN, or a title and author, first."); return; }
+  const tok = busy("Looking it up…", "Searching Open Library");
+  const cands = await searchBooks(q);
+  if (tok !== sheetToken) return;
+  showPicker(cands, {...keep, barcode: digits}, "", v);
+}
+
 function findMatch(f){
-  if (f.barcode && items.has("b-" + f.barcode)) return items.get("b-" + f.barcode);
+  const byCode = findByCode(f.barcode);
+  if (byCode) return byCode;
   if (!norm(f.title)) return null;
   const k = keyOf(f.title, f.author);
   for (const d of items.values()) if (d.key === k) return d;
@@ -749,9 +843,9 @@ function showPicker(cands, extra, ocrText, typed){
       if (act === "pick"){
         const c = cands[+e.target.closest("[data-i]").dataset.i];
         const f = fromLookup(c, {publisher: extra.publisher, year: extra.year, notes: extra.notes, barcode: extra.barcode || c.isbn});
-        const m = findMatch(f);
-        if (m && f.barcode && m.id === "b-" + f.barcode){ showItem(m.id, {scanned: true}); return; }
-        showForm(f, {match: m, scanned: true});
+        const hit = findByCode(f.barcode);
+        if (hit){ showItem(hit.id, {scanned: true}); return; }
+        showForm(f, {match: findMatch(f), scanned: true});
       }
       if (act === "self") showForm({title: typed?.title || "", author: typed?.author || "", publisher: extra.publisher, year: extra.year, notes: extra.notes, barcode: extra.barcode}, {scanned: true});
     });
@@ -759,8 +853,8 @@ function showPicker(cands, extra, ocrText, typed){
 
 /* ================= barcode → record ================= */
 async function lookupFlow(code, extra){
-  const bid = "b-" + code;
-  if (items.has(bid)){ showItem(bid, {scanned: true}); return; }
+  const hit = findByCode(code);
+  if (hit){ showItem(hit.id, {scanned: true}); return; }
   if (!isISBN13(code)){
     showForm({barcode: code, ...extra}, {msg: "That's not a book barcode, so there's nothing to look up. Fill in the details.", scanned: true});
     return;
@@ -768,9 +862,11 @@ async function lookupFlow(code, extra){
   const tok = busy("Looking it up…", "Checking Open Library and Google Books");
   const r = await lookupISBN(code);
   if (tok !== sheetToken) return;
-  if (!r){ showForm({barcode: code, ...extra}, {msg: "Couldn't find this ISBN online. Fill in the details, or try a photo of the cover.", scanned: true}); return; }
-  const f = fromLookup(r, {...extra, barcode: code});
-  showForm(f, {match: findMatch(f), scanned: true});
+  if (r){ const f = fromLookup(r, {...extra, barcode: code}); showForm(f, {match: findMatch(f), scanned: true}); return; }
+  const cands = await searchBooks(code);
+  if (tok !== sheetToken) return;
+  if (cands.length){ showPicker(cands, {...extra, barcode: code}, ""); return; }
+  showForm({barcode: code, ...extra}, {msg: "Couldn't find this ISBN online. Type the title and author and tap Look it up, or fill in the details.", scanned: true});
 }
 
 /* ================= live barcode scanner ================= */
@@ -804,6 +900,7 @@ let photoMode = "page", ocrWorker = null;
 function takePhoto(mode){ photoMode = mode; $("#cam").value = ""; $("#cam").click(); }
 $("#more").addEventListener("click", () => openSheet(`
   <h2 id="sheet-title">Add without scanning</h2>
+  <p class="by">For photos, take the picture with your normal camera app first, then pick it from your gallery.</p>
   <button class="btn ghost big" data-act="page">Publisher page<small>The page inside with the publisher, date and ISBN</small></button>
   <button class="btn ghost big" data-act="cover">Cover<small>Front or back. It'll try the barcode first, then the words</small></button>
   <button class="btn ghost big" data-act="type">Type it in<small>Then tap “Look it up” to fill in the rest</small></button>`, act => {
@@ -884,7 +981,7 @@ async function handlePhoto(file){
   const isbns = [...new Set([code, ...findISBNs(text)].filter(c => c && isISBN13(c)))];
 
   for (const isbn of isbns){
-    if (items.has("b-" + isbn)){ showItem("b-" + isbn, {scanned: true}); return; }
+    const hit = findByCode(isbn); if (hit){ showItem(hit.id, {scanned: true}); return; }
   }
   for (const isbn of isbns){
     line("Looking up the ISBN…");
@@ -913,7 +1010,7 @@ function doBackup(){
   localStorage.setItem("lastBackup", String(Date.now())); banner(""); toast("Backup downloaded. Keep it somewhere safe.");
 }
 $("#backup").addEventListener("click", doBackup);
-const COLS = ["title","author","kind","genre","section","publisher","year","barcode","count","inTotal","outTotal","firstIn","lastIn","lastOut","notes"];
+const COLS = ["title","author","kind","genre","section","publisher","year","barcode","altCodes","count","inTotal","outTotal","firstIn","lastIn","lastOut","notes"];
 $("#csv").addEventListener("click", () => {
   const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
   downloadFile(`shop-stock-${stamp()}.csv`, [COLS.join(","), ...[...items.values()].map(d => COLS.map(c => q(d[c])).join(","))].join("\r\n"), "text/csv");
