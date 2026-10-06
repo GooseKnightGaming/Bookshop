@@ -72,7 +72,8 @@ header h1{font:650 30px/1.1 var(--serif);margin:0 0 6px;letter-spacing:-.01em}
 .row .t,.row .a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row .t{font:500 17px/1.3 var(--serif)}
 .row .a{color:var(--muted);font-size:15px}
-.row .sec{font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px;flex:none}
+.row .sec{font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px;flex:none;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+optgroup{font-weight:700}
 .count{flex:none;min-width:40px;height:40px;border-radius:20px;display:grid;place-items:center;font-weight:700;background:var(--green-soft);color:var(--green)}
 .count.many{background:var(--green);color:var(--green-ink)}
 .gone{flex:none;text-align:right;font-size:13px;color:var(--out);line-height:1.2;min-width:62px}
@@ -177,6 +178,7 @@ form textarea{min-height:60px;resize:vertical}
     <button class="link" id="restore">Restore or import</button>
     <button class="link" id="csv">Download spreadsheet (CSV)</button>
     <button class="link" id="sharing">Sharing</button>
+    <span style="color:var(--muted);font-size:13px;align-self:center">Version 5</span>
   </div>
 </div>
 
@@ -206,17 +208,80 @@ form textarea{min-height:60px;resize:vertical}
 "use strict";
 
 /* ================= settings you can edit ================= */
-// Default sections. Once Sharing is on, the "Sections" tab in your Google Sheet replaces these.
-const DEFAULT_SECTIONS = [
-  ["AF","Adult Fiction","Fiction"],["MT","Major Thrillers","Fiction"],["WA","Women Authors","Fiction"],["WC","Women Crime Authors","Fiction"],
-  ["CL","Classics","Fiction"],["OB","Old Books",""],["NF","Non-Fiction",""],["WT","Wartime Stories",""],["WH","Western / Horseman",""],
-  ["CR","Crafts",""],["GP","Games, Jigsaws & Puzzles",""],["MG","Magazines",""],["MP","Maps",""],
-  ["K1","Babies & Toddlers","Kids"],["K2","Young Readers","Kids"],["K3","Early Readers","Kids"],["K4","Confident Readers","Kids"],
-  ["YA","YA Fiction","Kids"],["KN","Kids' Non-Fiction","Kids"],["MC","Corner of Miscellany",""]
+// Default sections: [Group, Section, sub-section suggestions]. Once Sharing is on, the "Sections" tab in your Google Sheet replaces these.
+const DEFAULT_ROWS = [
+  ["Adult Fiction", "General Fiction", ""],
+  ["Adult Fiction", "Classics", ""],
+  ["Adult Fiction", "Thrillers", ""],
+  ["Adult Fiction", "Women Authors", ""],
+  ["Adult Fiction", "Women Crime", ""],
+  ["Adult Fiction", "Historical Fiction", ""],
+  ["Adult Fiction", "Wartime Fiction", ""],
+  ["Adult Fiction", "Science Fiction", ""],
+  ["Adult Fiction", "Fantasy", ""],
+  ["Kids' Fiction", "Babies & Toddlers (about 0-3)", ""],
+  ["Kids' Fiction", "Early Readers (about 3-6)", ""],
+  ["Kids' Fiction", "Young Readers (about 6-9)", ""],
+  ["Kids' Fiction", "Confident Readers (about 9-12)", ""],
+  ["Kids' Fiction", "Young Adult (about 12-16)", ""],
+  ["Adult Non-Fiction", "Biographies & Memoirs", ""],
+  ["Adult Non-Fiction", "Royals", ""],
+  ["Adult Non-Fiction", "Politics", ""],
+  ["Adult Non-Fiction", "Business", ""],
+  ["Adult Non-Fiction", "Self-Help", ""],
+  ["Adult Non-Fiction", "Humour", ""],
+  ["Adult Non-Fiction", "Religion, Myths & Folklore", ""],
+  ["Adult Non-Fiction", "True Crime", ""],
+  ["Adult Non-Fiction", "History & Prehistory", ""],
+  ["Adult Non-Fiction", "War (Factual)", ""],
+  ["Adult Non-Fiction", "British Isles", "London, England (type the county), Scotland, Wales, Northern Ireland, Republic of Ireland, Isle of Man, Channel Islands, Isle of Wight"],
+  ["Adult Non-Fiction", "International Travel", "Europe, Asia, Africa, North America, South America, Australia & Oceania, Middle East, Polar"],
+  ["Adult Non-Fiction", "Gardening", ""],
+  ["Adult Non-Fiction", "Animals", ""],
+  ["Adult Non-Fiction", "Tree-Mendous (Trees)", ""],
+  ["Adult Non-Fiction", "Oceans", ""],
+  ["Adult Non-Fiction", "Lakes & Rivers", ""],
+  ["Adult Non-Fiction", "Art", ""],
+  ["Adult Non-Fiction", "Painting", ""],
+  ["Adult Non-Fiction", "Music", ""],
+  ["Adult Non-Fiction", "Antiques", ""],
+  ["Adult Non-Fiction", "Crafts", "Knitting, Crochet, Sewing, Embroidery, Flower Arranging, Woodwork, Other"],
+  ["Adult Non-Fiction", "Cookery", "British, Chinese, Indian, Italian, French, Mexican, Middle Eastern, Thai & South-East Asian, Vegetarian & Vegan, Diet & Free-From, Baking, General"],
+  ["Adult Non-Fiction", "Transport", "Motorcycles, Cars, Trains & Railways, Trams, Buses, Planes, Ships & Boats"],
+  ["Adult Non-Fiction", "Science", "Physics, Chemistry, Biology, Engineering, Maths, Philosophy, Sociology, Psychology"],
+  ["Adult Non-Fiction", "Medical", ""],
+  ["Kids' Non-Fiction", "Science", ""],
+  ["Kids' Non-Fiction", "History", ""],
+  ["Kids' Non-Fiction", "Art", ""],
+  ["Kids' Non-Fiction", "People", ""],
+  ["Kids' Non-Fiction", "Places", ""],
+  ["Kids' Non-Fiction", "Cars", ""],
+  ["Kids' Non-Fiction", "Animals", ""],
+  ["Kids' Non-Fiction", "GCSE & A Level Textbooks", "Maths, English, Science, History, Geography, Languages, Other"],
+  ["Foreign Languages", "Adult Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
+  ["Foreign Languages", "Kids' Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
+  ["Foreign Languages", "Adult Non-Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
+  ["Foreign Languages", "Kids' Non-Fiction", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
+  ["Foreign Languages", "Adult Religion", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
+  ["Foreign Languages", "Kids' Religion", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
+  ["Reference", "English Dictionaries & Thesauruses", ""],
+  ["Reference", "Bilingual & Foreign Dictionaries", "French, German, Spanish, Italian, Polish, Portuguese, Welsh, Other"],
+  ["Reference", "Learning English (EFL)", ""],
+  ["Other Categories", "Jigsaws", ""],
+  ["Other Categories", "Games & Puzzles", ""],
+  ["Other Categories", "Atlases, Maps & Walks", ""],
+  ["Other Categories", "Magazines", "Fishing, Motorcycles, Cars, Trains & Buses, Other"],
+  ["Other Categories", "Westerns & Horses", ""],
+  ["Miscellaneous", "Old Books (pre-1950s or cloth-bound)", ""],
+  ["Miscellaneous", "Other Misc.", ""]
 ];
-let SECTIONS = (() => { try { const x = JSON.parse(localStorage.getItem("sections") || "null"); if (Array.isArray(x) && x.length) return x; } catch {} return DEFAULT_SECTIONS; })();
-// Learned "this author's books go in this section" rules, keyed by normalised author name
-let RULES = (() => { try { return JSON.parse(localStorage.getItem("rules") || "{}") || {}; } catch { return {}; } })();
+// The first version's two-letter codes, moved to full names automatically
+const MIGRATE = {"AF": "Adult Fiction > General Fiction","MT": "Adult Fiction > Thrillers","WA": "Adult Fiction > Women Authors","WC": "Adult Fiction > Women Crime","CL": "Adult Fiction > Classics","OB": "Miscellaneous > Old Books (pre-1950s or cloth-bound)","WT": "Adult Fiction > Wartime Fiction","WH": "Other Categories > Westerns & Horses","CR": "Adult Non-Fiction > Crafts","GP": "Other Categories > Games & Puzzles","MG": "Other Categories > Magazines","MP": "Other Categories > Atlases, Maps & Walks","K1": "Kids' Fiction > Babies & Toddlers (about 0-3)","K2": "Kids' Fiction > Young Readers (about 6-9)","K3": "Kids' Fiction > Early Readers (about 3-6)","K4": "Kids' Fiction > Confident Readers (about 9-12)","YA": "Kids' Fiction > Young Adult (about 12-16)","MC": "Miscellaneous > Other Misc."};
+const toSection = ([g, n, subs]) => ({path: g ? `${g} > ${n}` : n, group: g || "", name: n, subs: subs ? String(subs).split(",").map(x => x.trim()).filter(Boolean) : []});
+const DEFAULT_SECTIONS = DEFAULT_ROWS.map(toSection);
+let SECTIONS = (() => { try { const x = JSON.parse(localStorage.getItem("sections2") || "null"); if (Array.isArray(x) && x.length && x[0].path) return x; } catch {} return DEFAULT_SECTIONS; })();
+// Learned "this author's books go here" rules, keyed by normalised author name
+let RULES = (() => { try { const r = JSON.parse(localStorage.getItem("rules") || "{}") || {}; for (const k in r) if (MIGRATE[r[k].section]) r[k].section = MIGRATE[r[k].section]; return r; } catch { return {}; } })();
 // Surnames that go straight to Major Thrillers
 const MAJOR_THRILLERS = ["rankin","francis","clancy","child","grisham","patterson","baldacci","forsyth","ludlum","maclean","cussler","connelly","higgins","archer","koontz","brown","reacher"];
 const KINDS = ["Book","Jigsaw","Puzzle book","Game","Magazine","Map","Other"];
@@ -231,10 +296,23 @@ const keyOf = (t, a) => norm(t) + "|" + norm(a);
 const surname = a => norm((a || "").split(/[,;&]| and /)[0]).split(" ").pop() || "";
 const fmtDate = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("en-GB", {day:"numeric", month:"short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric"}); };
 const nowISO = () => new Date().toISOString();
-const hasSection = c => SECTIONS.some(x => x[0] === c);
-const secName = c => { const x = SECTIONS.find(y => y[0] === c); return x ? (x[2] ? `${x[2]} › ${x[1]}` : x[1]) : (c ? "old section, no longer in the list" : ""); };
-const sectionOptions = cur => `<option value="">Not set</option>` + SECTIONS.map(([c]) => `<option value="${esc(c)}"${cur === c ? " selected" : ""}>${esc(c)}: ${esc(secName(c))}</option>`).join("")
-  + (cur && !hasSection(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)} (old section)</option>` : "");
+const hasSection = p => SECTIONS.some(x => x.path === p);
+const secInfo = p => SECTIONS.find(x => x.path === p);
+const secShort = p => secInfo(p)?.name || String(p || "").split(" > ").pop();
+const secName = p => p ? (hasSection(p) ? p : `${p} (old section)`) : "";
+function sectionOptions(cur){
+  const groups = [];
+  for (const x of SECTIONS){ let g = groups.find(y => y.name === x.group); if (!g) groups.push(g = {name: x.group, list: []}); g.list.push(x); }
+  const opt = x => `<option value="${esc(x.path)}"${cur === x.path ? " selected" : ""}>${esc(x.name)}</option>`;
+  return `<option value="">Not set</option>` + groups.map(g => g.name ? `<optgroup label="${esc(g.name)}">${g.list.map(opt).join("")}</optgroup>` : g.list.map(opt).join("")).join("")
+    + (cur && !hasSection(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)} (old section)</option>` : "");
+}
+function findSection(name, groupHint){
+  const n = name.toLowerCase(), c = SECTIONS.filter(x => x.name.toLowerCase().startsWith(n));
+  if (!c.length) return "";
+  if (groupHint){ const g = c.find(x => x.group.toLowerCase().startsWith(groupHint.toLowerCase())); if (g) return g.path; }
+  return c[0].path;
+}
 const newId = () => "k-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 /* ================= ISBN + page parsing ================= */
@@ -291,21 +369,62 @@ function genreFrom(subjects){
   for (const [re, g] of map) if (re.test(s)) return g;
   return (subjects[0] || "").slice(0, 30);
 }
+// Rough first guess from the subjects the book databases return. Your own choices (author rules) win over this.
 function suggestSection(f, subjects){
   const s = subjects.join(" | ").toLowerCase();
-  if (f.kind === "Jigsaw" || f.kind === "Game" || f.kind === "Puzzle book") return "GP";
-  if (f.kind === "Magazine") return "MG";
-  if (f.kind === "Map") return "MP";
-  if (/young adult/.test(s)) return "YA";
-  if (/juvenile|children/.test(s)) return /nonfiction|non-fiction/.test(s) ? "KN" : "K4";
-  if (f.year && +f.year < 1950) return "OB";
-  if (/knitting|sewing|crochet|needlework|flower arrang|embroider/.test(s)) return "CR";
-  if (/crossword|puzzle/.test(s)) return "GP";
-  if (/western|horse/.test(s)) return "WH";
-  if (/world war|war stories/.test(s)) return "WT";
-  if (MAJOR_THRILLERS.includes(surname(f.author))) return "MT";
-  if (/fiction|novel|stories/.test(s)) return "AF";
-  return subjects.length ? "NF" : "";
+  const pick = (name, group, sub = "") => ({section: findSection(name, group), subsection: sub});
+  const first = pairs => { for (const [re, v] of pairs) if (re.test(s)) return v; return ""; };
+  if (f.kind === "Jigsaw") return pick("Jigsaws");
+  if (f.kind === "Game" || f.kind === "Puzzle book" || /crossword|puzzles/.test(s)) return pick("Games & Puzzles");
+  if (f.kind === "Magazine") return pick("Magazines", "", first([[/fishing|angling/,"Fishing"],[/motorcycl/,"Motorcycles"],[/automobile|\bcars\b/,"Cars"],[/railroad|railway|train|\bbus/,"Trains & Buses"]]));
+  if (f.kind === "Map" || /atlases|\bmaps\b|walking|hiking/.test(s)) return pick("Atlases, Maps & Walks");
+  if (/dictionar|thesaur/.test(s)) return /bilingual|french|german|spanish|italian|polish/.test(s) ? pick("Bilingual") : pick("English Dictionaries");
+  if (/english language.*(foreign|second)|\besl\b|\befl\b/.test(s)) return pick("Learning English");
+
+  if (/juvenile|children|picture books|young adult|board books/.test(s)){
+    if (/young adult/.test(s)) return pick("Young Adult", "Kids");
+    if (/nonfiction|non-fiction/.test(s) || !/fiction|stories|picture|board books/.test(s)){
+      if (/examination|textbook|gcse|study guides/.test(s)) return pick("GCSE");
+      const n = first([[/science|nature/,"Science"],[/history/,"History"],[/\bart\b|drawing/,"Art"],[/biograph/,"People"],[/geograph|travel|countries/,"Places"],[/automobile|\bcars\b|vehicles/,"Cars"],[/animal|pets|birds|wildlife/,"Animals"]]);
+      return n ? pick(n, "Kids' Non") : {section: "", subsection: ""};
+    }
+    if (/picture books|board books|baby|toddler/.test(s)) return pick("Babies & Toddlers");
+    return pick("Confident Readers");
+  }
+  if (f.year && +f.year < 1950) return pick("Old Books");
+  if (/western stories|westerns|horses|horsemanship|equestrian/.test(s)) return pick("Westerns & Horses");
+
+  if (/fiction|novel|stories/.test(s) && !/nonfiction/.test(s)){
+    if (/science fiction/.test(s)) return pick("Science Fiction");
+    if (/fantasy/.test(s)) return pick("Fantasy");
+    if (/world war|war stories|war fiction/.test(s)) return pick("Wartime Fiction");
+    if (/historical fiction/.test(s)) return pick("Historical Fiction");
+    if (/detective|crime|mystery|thriller|suspense|espionage|\bspy\b/.test(s) || MAJOR_THRILLERS.includes(surname(f.author))) return pick("Thrillers");
+    return pick("General Fiction");
+  }
+  if (MAJOR_THRILLERS.includes(surname(f.author))) return pick("Thrillers");
+
+  if (/travel|guidebooks/.test(s)){
+    const bi = first([[/london/,"London"],[/scotland/,"Scotland"],[/wales/,"Wales"],[/northern ireland/,"Northern Ireland"],[/ireland/,"Republic of Ireland"],[/isle of man/,"Isle of Man"],[/channel islands/,"Channel Islands"],[/isle of wight/,"Isle of Wight"],[/england|great britain|british isles/,"-"]]);
+    if (bi) return pick("British Isles", "", bi === "-" ? "" : bi);
+    return pick("International Travel", "", first([[/europe|france|spain|italy|germany|greece|portugal/,"Europe"],[/asia|china|japan|india/,"Asia"],[/africa/,"Africa"],[/united states|canada|mexico/,"North America"],[/south america|brazil|peru|argentina/,"South America"],[/australia|new zealand/,"Australia & Oceania"],[/middle east/,"Middle East"],[/arctic|antarctic|polar/,"Polar"]]));
+  }
+  const NF = [
+    [/cook|recipe|baking/, "Cookery", [[/chinese/,"Chinese"],[/india/,"Indian"],[/ital/,"Italian"],[/french/,"French"],[/mexic/,"Mexican"],[/thai|asian/,"Thai & South-East Asian"],[/vegetarian|vegan/,"Vegetarian & Vegan"],[/gluten|diet|reducing/,"Diet & Free-From"],[/baking|bread|cakes/,"Baking"],[/british|english/,"British"]]],
+    [/knitting|crochet|sewing|needlework|embroider|flower arrang|woodwork|handicraft/, "Crafts", [[/knit/,"Knitting"],[/crochet/,"Crochet"],[/sewing|needlework/,"Sewing"],[/embroider/,"Embroidery"],[/flower/,"Flower Arranging"],[/woodwork/,"Woodwork"]]],
+    [/motorcycl|automobile|railroad|railway|locomotive|tramway|\bbuses\b|aircraft|airplane|aeronautic|ships|boats/, "Transport", [[/motorcycl/,"Motorcycles"],[/automobile/,"Cars"],[/railroad|railway|locomotive/,"Trains & Railways"],[/tram/,"Trams"],[/\bbus/,"Buses"],[/aircraft|airplane|aeronautic/,"Planes"],[/ship|boat/,"Ships & Boats"]]],
+    [/biograph|memoir/, "Biographies"], [/kings and rulers|queens|royal/, "Royals"], [/politic|government/, "Politics"],
+    [/religio|bible|christian|islam|buddhis|mytholog|folklore/, "Religion"], [/true crime|criminals|murder|crime/, "True Crime"],
+    [/self-help|self-actualization|personal development/, "Self-Help"], [/business|management|economics|finance/, "Business"],
+    [/humou?r|wit and/, "Humour"], [/world war|military|\bwar\b|battles/, "War (Factual)"], [/history|archaeolog|prehistor|antiquities/, "History & Prehistory"],
+    [/gardening|horticulture/, "Gardening"], [/\btrees\b|forests/, "Tree-Mendous"], [/ocean|marine|\bsea\b|seashore/, "Oceans"],
+    [/rivers|lakes|canals|waterways/, "Lakes & Rivers"], [/animal|pets|dogs|cats|birds|wildlife|zoology/, "Animals"],
+    [/antique|collectibles/, "Antiques"], [/music/, "Music"], [/painting|watercolou?r/, "Painting"], [/\bart\b|artists|sculpture|drawing/, "Art"],
+    [/medic|health|anatomy|nursing/, "Medical"],
+    [/physics|chemistry|biology|engineering|mathematic|philosophy|sociology|psychology|science/, "Science", [[/physics/,"Physics"],[/chemistry/,"Chemistry"],[/biology/,"Biology"],[/engineering/,"Engineering"],[/mathematic/,"Maths"],[/philosophy/,"Philosophy"],[/sociology/,"Sociology"],[/psychology/,"Psychology"]]],
+  ];
+  for (const [re, name, subs] of NF) if (re.test(s)) return pick(name, "Adult Non", subs ? first(subs) : "");
+  return {section: "", subsection: ""};
 }
 
 /* ================= online lookups ================= */
@@ -340,8 +459,8 @@ async function searchBooks(q){
 function fromLookup(r, extra = {}){
   const f = {kind: "Book", title: r.title || "", author: r.author || "", publisher: extra.publisher || r.publisher || "",
     year: extra.year || r.year || "", barcode: extra.barcode || "", notes: extra.notes || "", genre: genreFrom(r.subjects || [])};
-  f.section = suggestSection(f, r.subjects || []);
-  if (!hasSection(f.section)) f.section = "";
+  const g = suggestSection(f, r.subjects || []);
+  f.section = g.section; f.subsection = g.subsection;
   return applyRule(f);
 }
 function ruleFor(author){
@@ -350,26 +469,31 @@ function ruleFor(author){
 }
 function applyRule(f){
   const r = ruleFor(f.author);
-  if (r){ if (r.section && hasSection(r.section)) f.section = r.section; if (r.genre) f.genre = r.genre; f._rule = true; }
+  if (r && r.section && hasSection(r.section)){
+    f.section = r.section; f.subsection = r.subsection || "";
+    if (r.genre) f.genre = r.genre;
+    f._rule = true;
+  }
   return f;
 }
-function learnRule(author, section, genre){
+function learnRule(author, section, genre, subsection){
   if (!author || !section) return;
   const k = norm(author), cur = RULES[k];
-  if (cur && cur.section === section && (cur.genre || "") === (genre || "")) return;
-  RULES[k] = {author, section, genre: genre || ""};
+  genre = genre || ""; subsection = subsection || "";
+  if (cur && cur.section === section && (cur.genre || "") === genre && (cur.subsection || "") === subsection) return;
+  RULES[k] = {author, section, subsection, genre};
   localStorage.setItem("rules", JSON.stringify(RULES));
-  queue({t: "rule", author, section, genre: genre || ""});
+  queue({t: "rule", author, section, subsection, genre});
 }
 function applyConfig(c){
   if (!c) return;
-  if (Array.isArray(c.sections) && c.sections.length){
-    SECTIONS = c.sections.filter(x => x && x[0]).map(x => [String(x[0]), String(x[1] || x[0]), String(x[2] || "")]);
-    localStorage.setItem("sections", JSON.stringify(SECTIONS));
+  if (Array.isArray(c.sections) && c.sections.length && c.sections[0].path){
+    SECTIONS = c.sections.map(x => ({path: String(x.path), group: String(x.group || ""), name: String(x.name || x.path), subs: Array.isArray(x.subs) ? x.subs.map(String) : []}));
+    localStorage.setItem("sections2", JSON.stringify(SECTIONS));
   }
   if (Array.isArray(c.rules)){
     const r = {};
-    for (const x of c.rules) if (x && x.author) r[norm(x.author)] = {author: x.author, section: x.section || "", genre: x.genre || ""};
+    for (const x of c.rules) if (x && x.author) r[norm(x.author)] = {author: x.author, section: MIGRATE[x.section] || x.section || "", subsection: x.subsection || "", genre: x.genre || ""};
     RULES = r; localStorage.setItem("rules", JSON.stringify(RULES));
   }
   render();
@@ -511,7 +635,7 @@ async function sync(){
     await takeFromServer(res.items || [], new Set(later.map(b => b.op.id || b.op.item?.id)));
     if (res.config){
       applyConfig(res.config);
-      for (const b of later) if (b.op.t === "rule") RULES[norm(b.op.author)] = {author: b.op.author, section: b.op.section, genre: b.op.genre || ""};
+      for (const b of later) if (b.op.t === "rule") RULES[norm(b.op.author)] = {author: b.op.author, section: b.op.section, subsection: b.op.subsection || "", genre: b.op.genre || ""};
     }
     since = res.rev || since; localStorage.setItem("syncSince", String(since));
     lastSync = Date.now(); syncProblem = "";
@@ -637,7 +761,7 @@ function render(){
   let rows = tab === "in" ? inStock : tab === "gone" ? gone : all;
   if (query){
     const q = norm(query), raw = query.replace(/[^0-9Xx]/g, "");
-    rows = rows.filter(d => norm([d.title, d.author, d.genre, d.publisher, d.notes].join(" ")).includes(q) || (raw.length > 3 && ((d.barcode || "") + "," + (d.altCodes || "")).includes(raw)));
+    rows = rows.filter(d => norm([d.title, d.author, d.genre, d.publisher, d.notes, d.section, d.subsection].join(" ")).includes(q) || (raw.length > 3 && ((d.barcode || "") + "," + (d.altCodes || "")).includes(raw)));
   }
   if (tab === "gone") rows.sort((a, b) => (b.lastOut || "").localeCompare(a.lastOut || ""));
   else rows.sort((a, b) => (surname(a.author) || "zzz").localeCompare(surname(b.author) || "zzz") || norm(a.title).localeCompare(norm(b.title)));
@@ -652,7 +776,7 @@ function render(){
   list.innerHTML = rows.slice(0, SHOW_MAX).map(d => `
     <li><button class="row" data-id="${esc(d.id)}">
       <span class="txt"><span class="t">${esc(d.title || "Untitled")}</span><span class="a">${esc(d.author || d.kind || "")}</span></span>
-      ${d.section ? `<span class="sec" title="${esc(secName(d.section))}">${esc(d.section)}</span>` : ""}
+      ${d.section ? `<span class="sec" title="${esc(secName(d.section))}">${esc(d.subsection || secShort(d.section))}</span>` : ""}
       ${d.count > 0 ? `<span class="count${d.count > 1 ? " many" : ""}" aria-label="${d.count} in stock">${d.count}</span>`
                     : `<span class="gone">Gone<br>${esc(fmtDate(d.lastOut))}</span>`}
     </button></li>`).join("") +
@@ -700,7 +824,7 @@ function showItem(id, opts = {}){
       <button class="btn primary" data-act="in">One in</button>
     </div>
     <dl>
-      ${d.section ? `<dt>Section</dt><dd>${esc(d.section)}: ${esc(secName(d.section))}</dd>` : ""}
+      ${d.section ? `<dt>Section</dt><dd>${esc(secName(d.section))}${d.subsection ? ` > ${esc(d.subsection)}` : ""}</dd>` : ""}
       ${d.genre ? `<dt>Genre</dt><dd>${esc(d.genre)}</dd>` : ""}
       ${d.publisher || d.year ? `<dt>Published</dt><dd>${esc([d.publisher, d.year].filter(Boolean).join(", "))}</dd>` : ""}
       ${d.barcode ? `<dt>Barcode</dt><dd>${esc(d.barcode)}</dd>` : ""}
@@ -717,7 +841,7 @@ function showItem(id, opts = {}){
     </div>`, act => {
       if (act === "in"){ adjust(id, +1); showItem(id, opts); }
       if (act === "out"){ adjust(id, -1); showItem(id, opts); }
-      if (act === "next"){ closeSheet(); startScanner(); }
+      if (act === "next"){ closeSheet(); scanAction(); }
       if (act === "edit") showForm({...d}, {editId: id});
       if (act === "delete" && confirm(`Delete “${d.title}” completely? Its history goes too. Use this for mistakes, not for books that sold.`)){
         deleteItem(id); closeSheet(); toast("Record deleted", () => restoreItems(d));
@@ -743,9 +867,10 @@ function showForm(f, opts = {}){
       <div style="display:flex;gap:8px"><input id="f-barcode" name="barcode" inputmode="numeric" value="${esc(f.barcode)}" placeholder="e.g. 978…">${editing ? "" : `<button type="button" class="btn ghost" data-act="lookup" style="flex:none;min-height:0;padding:10px 14px">Look up</button>`}</div>
       <label for="f-title">Title</label><input id="f-title" name="title" value="${esc(f.title)}">
       <label for="f-author">Author (or maker)</label><input id="f-author" name="author" value="${esc(f.author)}">
+      <label for="f-section">Section</label><select id="f-section" name="section">${sectionOptions(f.section)}</select>
       <div class="two">
+        <div><label for="f-sub">Sub-section</label><input id="f-sub" name="subsection" list="sub-list" value="${esc(f.subsection)}" placeholder="optional"><datalist id="sub-list"></datalist></div>
         <div><label for="f-kind">Type</label><select id="f-kind" name="kind">${KINDS.map(k => `<option${(f.kind || "Book") === k ? " selected" : ""}>${k}</option>`).join("")}</select></div>
-        <div><label for="f-section">Section</label><select id="f-section" name="section">${sectionOptions(f.section)}</select></div>
       </div>
       <label for="f-genre">Genre</label><input id="f-genre" name="genre" value="${esc(f.genre)}">
       <div class="two">
@@ -770,12 +895,17 @@ function showForm(f, opts = {}){
       if (act === "lookup") lookupFromForm();
     });
 
+  // Sub-section suggestions follow the chosen section
+  const fillSubs = () => { $("#sub-list").innerHTML = (secInfo($("#f-section").value)?.subs || []).map(x => `<option value="${esc(x)}">`).join(""); };
+  fillSubs();
+  $("#f-section").addEventListener("change", fillSubs);
   // Typing an author you've sorted before fills in their usual section
   $("#f-author").addEventListener("change", e => {
-    const r = ruleFor(e.target.value), sec = $("#f-section"), gen = $("#f-genre");
-    if (!r) return;
-    if (r.section && hasSection(r.section) && !sec.value) sec.value = r.section;
-    if (r.genre && !gen.value) gen.value = r.genre;
+    const r = ruleFor(e.target.value), sec = $("#f-section");
+    if (!r || !r.section || !hasSection(r.section) || sec.value) return;
+    sec.value = r.section; fillSubs();
+    if (r.subsection && !$("#f-sub").value) $("#f-sub").value = r.subsection;
+    if (r.genre && !$("#f-genre").value) $("#f-genre").value = r.genre;
   });
 
   $("#f").onsubmit = e => {
@@ -785,8 +915,8 @@ function showForm(f, opts = {}){
     v.barcode = v.barcode.replace(/[^0-9Xx]/g, "").toUpperCase();
     if (v.barcode.length === 10 && valid10(v.barcode)) v.barcode = to13(v.barcode);
     if (!v.title){ toast("Add a title first, or tap Look it up."); $("#f-title").focus(); return; }
-    const fields = {title: v.title, author: v.author, kind: v.kind, section: v.section, genre: v.genre, publisher: v.publisher, year: v.year, barcode: v.barcode, notes: v.notes, key: keyOf(v.title, v.author)};
-    learnRule(v.author, v.section, v.genre);
+    const fields = {title: v.title, author: v.author, kind: v.kind, section: v.section, subsection: v.subsection, genre: v.genre, publisher: v.publisher, year: v.year, barcode: v.barcode, notes: v.notes, key: keyOf(v.title, v.author)};
+    learnRule(v.author, v.section, v.genre, v.subsection);
     if (editing){ updateItem(opts.editId, fields); showItem(opts.editId); return; }
     const copies = Math.max(1, Math.min(99, parseInt(v.copies, 10) || 1));
     const existing = findByCode(v.barcode);
@@ -794,7 +924,7 @@ function showForm(f, opts = {}){
     const id = v.barcode ? "b-" + v.barcode : newId(), t = nowISO();
     createItem({id, ...fields, count: copies, inTotal: copies, outTotal: 0, firstIn: t, lastIn: t, lastOut: null, updated: t, log: [{a: "in", n: copies, d: t}]});
     toast(`Added: ${v.title}`, () => deleteItem(id));
-    if (opts.scanned) openSheet(`<h2 id="sheet-title">Added</h2><p class="by">${esc(v.title)}</p><div class="pair"><button class="btn primary" data-act="next">Scan next</button><button class="btn ghost" data-act="close">Done</button></div>`, a => { if (a === "next"){ closeSheet(); startScanner(); } });
+    if (opts.scanned) openSheet(`<h2 id="sheet-title">Added</h2><p class="by">${esc(v.title)}</p><div class="pair"><button class="btn primary" data-act="next">Scan next</button><button class="btn ghost" data-act="close">Done</button></div>`, a => { if (a === "next"){ closeSheet(); scanAction(); } });
     else { closeSheet(); backupNag(); }
   };
 }
@@ -887,11 +1017,18 @@ async function startScanner(){
       lookupFlow(code, {});
     });
   } catch (e) {
-    $("#scan-msg").textContent = e?.name === "NotAllowedError" ? "Camera access was blocked. Allow it in your browser settings, or use a photo instead." : "Couldn't start the camera. Use a photo instead.";
+    if (e?.name === "NotAllowedError" || e?.name === "SecurityError"){
+      localStorage.setItem("camBlocked", "1"); scanLabel();
+      $("#scan-msg").textContent = "The camera is blocked for this browser, so from now on “Barcode photo” will open your gallery instead. Tap “Use a photo instead”.";
+    } else $("#scan-msg").textContent = "Couldn't start the camera. Use a photo instead.";
   }
 }
 function stopScanner(){ try { reader?.reset(); } catch {} reader = null; $("#scanner").hidden = true; }
-$("#scan").addEventListener("click", startScanner);
+const camBlocked = () => localStorage.getItem("camBlocked") === "1";
+function scanLabel(){ $("#scan").textContent = camBlocked() ? "Barcode photo" : "Scan barcode"; }
+function scanAction(){ if (camBlocked()) takePhoto("cover"); else startScanner(); }
+scanLabel();
+$("#scan").addEventListener("click", scanAction);
 $("#scan-cancel").addEventListener("click", stopScanner);
 $("#scan-photo").addEventListener("click", () => { stopScanner(); takePhoto("cover"); });
 
@@ -903,7 +1040,9 @@ $("#more").addEventListener("click", () => openSheet(`
   <p class="by">For photos, take the picture with your normal camera app first, then pick it from your gallery.</p>
   <button class="btn ghost big" data-act="page">Publisher page<small>The page inside with the publisher, date and ISBN</small></button>
   <button class="btn ghost big" data-act="cover">Cover<small>Front or back. It'll try the barcode first, then the words</small></button>
-  <button class="btn ghost big" data-act="type">Type it in<small>Then tap “Look it up” to fill in the rest</small></button>`, act => {
+  <button class="btn ghost big" data-act="type">Type it in<small>Then tap “Look it up” to fill in the rest</small></button>
+  ${camBlocked() ? `<div class="actions"><button class="link" data-act="cam">Try the live barcode camera again</button></div>` : ""}`, act => {
+    if (act === "cam"){ localStorage.removeItem("camBlocked"); scanLabel(); closeSheet(); startScanner(); }
     if (act === "page" || act === "cover"){ closeSheet(); takePhoto(act); }
     if (act === "type") showForm({});
   }));
@@ -1010,7 +1149,7 @@ function doBackup(){
   localStorage.setItem("lastBackup", String(Date.now())); banner(""); toast("Backup downloaded. Keep it somewhere safe.");
 }
 $("#backup").addEventListener("click", doBackup);
-const COLS = ["title","author","kind","genre","section","publisher","year","barcode","altCodes","count","inTotal","outTotal","firstIn","lastIn","lastOut","notes"];
+const COLS = ["title","author","kind","genre","section","subsection","publisher","year","barcode","altCodes","count","inTotal","outTotal","firstIn","lastIn","lastOut","notes"];
 $("#csv").addEventListener("click", () => {
   const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
   downloadFile(`shop-stock-${stamp()}.csv`, [COLS.join(","), ...[...items.values()].map(d => COLS.map(c => q(d[c])).join(","))].join("\r\n"), "text/csv");
@@ -1070,7 +1209,9 @@ $("#toast-undo").addEventListener("click", () => { const f = undoFn; undoFn = nu
   try {
     idb = await openDB();
     const all = await new Promise((res, rej) => { const r = idb.transaction("items").objectStore("items").getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-    for (const d of all) items.set(d.id, d);
+    const moved = [];
+    for (const d of all){ if (MIGRATE[d.section]){ d.section = MIGRATE[d.section]; moved.push(d); } items.set(d.id, d); }
+    if (moved.length) await tx("items", "readwrite", st => moved.forEach(d => st.put(d)));
     render(); backupNag();
     showSyncStatus();
     $("#sharing").addEventListener("click", () => showSharing());

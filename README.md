@@ -54,10 +54,14 @@ The app can keep several phones in step through a Google Sheet you own. The othe
 
 **Your categories live in the sheet.** Besides *Stock*, the script makes two more tabs:
 
-- **Sections**: Code, Name and an optional Group (for example *Fiction*, *Kids*), shown in the app as *Fiction › Women Crime Authors*. Add, rename or delete rows when the shop gets rearranged, and every phone's Section list follows within a minute. Items still using a removed code show it as "(old section)" until you change them.
-- **Authors**: which section (and genre) each author's books normally go in. The app fills this in as you work, and you can correct or add rows by hand.
+- **Sections**: one row per section, with three columns. *Group* is the umbrella (Adult Fiction, Kids' Non-Fiction…). *Section* is the shelf (Women Crime, Cookery…). *Sub-sections* is optional: a comma-separated list of suggestions offered on the phone (Italian, Indian, Vegetarian & Vegan…). People can still type their own sub-section, such as a county name. A book's section is stored written out in full, like `Adult Fiction > Women Crime`, so it's obvious in the spreadsheet. Add, rename, reorder or delete rows when the shop gets rearranged, and the phones follow within a minute. Items still using a removed section show it as "(old section)" until you change them.
+- **Authors**: which section, sub-section and genre each author's books normally go in. The app fills this in as you work, and you can correct or add rows by hand.
 
-You can also edit the *Stock* tab directly. Fix a section, genre or title in a cell and the phones pick it up. Don't edit the `count`, `id`, `updated` or `log` columns; let the app handle those. You can add your own extra columns too (say, *Shelf note*), and they'll be left alone.
+You can also edit the *Stock* tab directly. Fix a section, genre or title in a cell and the phones pick it up. Don't edit the `count`, `id`, `updated` or `log` columns; let the app handle those. You can add your own extra columns too, and they'll be left alone.
+
+**After a big find-and-replace** (say you rename a section and update every book in it), use the **Shop Stock** menu at the top of the sheet → **Send sheet changes to the phones**. Find-and-replace doesn't always count as an edit, so this makes sure every phone catches up. The menu appears after you reload the sheet once.
+
+If your sheet was set up with the first version's two-letter section codes, the new script renames that tab to *Old sections (codes)*, creates the new *Sections* tab, and moves existing books and author rules across to the full names automatically. You can delete the old tab afterwards.
 
 **If you change `Code.gs` later:** go to **Deploy → Manage deployments**, click the pencil, choose **New version**, then **Deploy**. This keeps the same web app URL. A brand-new deployment would give a new URL, which every phone would need.
 
