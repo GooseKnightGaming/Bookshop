@@ -383,7 +383,7 @@ let RULES = {};   // filled in just below the author-name helpers
 // Surnames that go straight to Major Thrillers
 const MAJOR_THRILLERS = ["rankin","francis","clancy","child","grisham","patterson","baldacci","forsyth","ludlum","maclean","cussler","connelly","higgins","archer","koontz","brown","reacher"];
 const KINDS = ["Book","Jigsaw","Puzzle book","Game","Magazine","Map","Other"];
-const APP_VERSION = "Alpha 1.0.15";
+const APP_VERSION = "Alpha 1.0.16";
 const SHOW_MAX = 300;
 /* ========================================================= */
 
@@ -412,10 +412,16 @@ const personKey = p => fold(p).replace(/[^a-z0-9]+/g, " ").trim().split(" ").fil
 const groupKey = a => [...new Set(peopleRaw(a).map(personKey).filter(Boolean))].sort().join(" + ");
 const isAnon = a => /^\s*(anon(ymous)?|unknown|author unknown|not known|various( authors)?|n\/?a|none)\.?\s*$/i.test(String(a || "").replace(/\([^)]*\)/g, ""));
 const PARTICLES = /^(du|de|del|della|der|den|di|da|le|la|van|von|ten|ter|st\.?|bin|ibn|al)$/i;
+// Publishers, guide series and organisations credited as "authors" (Rough Guides, Lonely Planet, DK, the AA…)
+const ORG_EXACT = /^(dk|aa|rac|bbc|haynes|usborne|ladybird|michelin|berlitz|baedeker|bradt|cadogan|footprint|fodor'?s|frommer'?s|time out|which\??|lonely planet|rough guides?|insight guides?|eyewitness( travel)?|dk eyewitness|dorling kindersley|reader'?s digest|national geographic|ordnance survey|national trust|english heritage|automobile association|jarrold|pevsner|good food guide|egon ronay)$/i;
+const ORG_WORDS = /\b(guides|publishing|publishers?|press|books|ltd|limited|inc|plc|association|society|trust|council|survey|editors|staff|team|editorial|magazine|company|corporation|museum|university|institute|committee|department|ministry|foundation|club)\b/i;
+const isOrg = p => { p = String(p || "").replace(/\([^)]*\)/g, "").trim(); return !!p && (ORG_EXACT.test(p) || ORG_WORDS.test(p)); };
+// Just the people in a credit line (organisations removed)
+const peopleOnly = a => peopleRaw(a).filter(p => !isOrg(p)).join(" & ");
 // "Daphne du Maurier" -> "du Maurier, Daphne"
 function surnameFirst(p){
   p = String(p).trim();
-  if (!p || p.includes(",")) return p;
+  if (!p || p.includes(",") || isOrg(p)) return p;
   const t = p.split(/\s+/);
   let suffix = "";
   if (t.length > 2 && /^(jr\.?|sr\.?|ii|iii)$/i.test(t[t.length - 1])) suffix = ", " + t.pop();
@@ -526,6 +532,23 @@ function genreFrom(subjects){
   for (const [re, g] of map) if (re.test(s)) return g;
   return (subjects[0] || "").slice(0, 30);
 }
+// Finds the travel or British Isles section whose sub-section (or name) names a place in the text,
+// e.g. "Cyprus" -> International Travel > Europe > Southern Europe, sub-section Cyprus. Longest match wins.
+const PLACE_STOP = new Set(["general","other","coast","the coast","north","south","east","west","midlands","islands","valleys","central","lakes","global","the south","the north","the west","polar expeditions"]);
+const PLACE_ALIASES = [[/\bturkey\b/, "turkiye"], [/\bholland\b/, "netherlands"], [/\bunited states\b|\bu\.s\.a?\b/, "usa"], [/\bburma\b/, "myanmar"], [/\bczech republic\b/, "czechia"], [/\bcote d.?ivoire\b/, "ivory coast"]];
+function placeMatch(text){
+  let t = fold(text);
+  for (const [re, add] of PLACE_ALIASES) if (re.test(t)) t += " | " + add;
+  const phrases = name => fold(name).replace(/\bincl\.?\s*/g, "").split(/[&\/,()]|\band\b/).map(w => w.replace(/^\s*the\s+/, "").replace(/["']/g, "").trim()).filter(w => w.length > 3 && !PLACE_STOP.has(w));
+  const hasWord = w => new RegExp("(^|[^a-z])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "($|[^a-z])").test(t);
+  let best = null;
+  for (const x of SECTIONS){
+    if (!/International Travel|British Isles|Overseas Territories/.test(x.path)) continue;
+    for (const sub of x.subs) for (const w of phrases(sub)) if (hasWord(w) && (!best || w.length > best.len)) best = {section: x.path, subsection: sub, len: w.length};
+    for (const w of phrases(secShort(x.path))) if (hasWord(w) && (!best || w.length > best.len)) best = {section: x.path, subsection: "", len: w.length};
+  }
+  return best ? {section: best.section, subsection: best.subsection} : null;
+}
 // Rough first guess from the subjects the book databases return. Your own choices (author rules) win over this.
 function suggestSection(f, subjects){
   const s = subjects.join(" | ").toLowerCase();
@@ -596,6 +619,9 @@ function suggestSection(f, subjects){
   }
   if (MAJOR_THRILLERS.includes(surname(f.author))) return pick("Thrillers");
 
+  const travel = /travel|guidebooks|tours|description and|voyages/.test(s) || /\b(guide to|guidebook|travel|walks? in|walking in)\b/i.test(f.title || "")
+    || /rough guide|lonely planet|eyewitness|insight guide|time out|fodor|frommer|berlitz|bradt|cadogan|footprint|michelin|baedeker/i.test([f.credit, f.author, f.publisher].join(" "));
+  if (travel && !/fiction|novel/.test(s)){ const hit = placeMatch(s + " | " + (f.title || "")); if (hit) return hit; }
   if (/travel|guidebooks/.test(s)){
     const bi = first([[/london/,["London",""]],[/scotland/,["Scotland",""]],[/wales/,["Wales",""]],[/northern ireland/,["Ireland","Northern Ireland"]],[/ireland/,["Ireland","Republic of Ireland"]],
       [/isle of man/,["Other Islands","Isle of Man"]],[/channel islands/,["Other Islands","Channel Islands"]],[/isle of wight/,["Other Islands","Isle of Wight"]],[/england|great britain|british isles/,["England",""]]]);
@@ -821,10 +847,12 @@ async function searchBooks(q){
   return out.slice(0, 8);
 }
 function fromLookup(r, extra = {}){
-  const f = {kind: extra.kind || "Book", title: r.title || "", author: r.author || "", publisher: extra.publisher || r.publisher || "",
+  const people = peopleOnly(r.author), orgs = peopleRaw(r.author).filter(isOrg);
+  const author = people || r.author || "", orgPublisher = people && orgs.length ? orgs[0] : "";
+  const f = {kind: extra.kind || "Book", title: r.title || "", author, publisher: extra.publisher || r.publisher || orgPublisher,
     year: extra.year || r.year || "", barcode: extra.barcode || "", notes: extra.notes || "", genre: genreFrom(r.subjects || []),
     _sourceName: r.source || "", _alternatives: r.alternatives || []};
-  const g = suggestSection(f, r.subjects || []);
+  const g = suggestSection({...f, credit: r.author}, r.subjects || []);
   f.section = g.section; f.subsection = g.subsection;
   applyRule(f, [...(r.subjects || []), r.title || ""].join(" | "));
   return applyLanguage(f, r.lang);
@@ -866,6 +894,7 @@ function pickRule(rows, text){
   return {rule: null, note: `${displayAuthor(usable[0].author)} has more than one entry in the Authors list, and nothing about this book matched their clue words, so check the section.`};
 }
 function resolveRule(author, text){
+  author = peopleOnly(author);
   if (!author || isAnon(author)) return {rule: null};
   text = fold(text || "");
   const g = groupKey(author);
@@ -889,10 +918,11 @@ function applyRule(f, text){
   return f;
 }
 // The single existing rule for exactly this credit line, if there is one (used by the tick-box)
-const ownRule = author => { const r = RULES[groupKey(author)]; return r && r.length === 1 ? r[0] : null; };
+const ownRule = author => { const r = RULES[groupKey(peopleOnly(author))]; return r && r.length === 1 ? r[0] : null; };
 // New authors are remembered automatically. An existing author's usual section only changes when the
 // tick-box is ticked, so one book shelved somewhere unusual doesn't move all their others.
 function learnRule(author, section, genre, subsection, makeUsual){
+  author = peopleOnly(author);   // a rule for "Rough Guides" would send every guide to one country
   if (!author || !section || isAnon(author) || /^Foreign Languages/.test(section)) return;   // the language decides that, not the author
   const k = groupKey(author); if (!k) return;
   genre = genre || ""; subsection = subsection || "";
