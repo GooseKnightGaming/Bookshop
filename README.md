@@ -16,16 +16,27 @@ It runs entirely in your phone's browser. There's no server, no account and no c
 
 Opening it from the home-screen icon is worth doing. It runs full-screen, and on iPhone it stops Safari clearing the saved data when you haven't visited for a while.
 
+## Using it
+
+The current version is shown at the bottom of the app (for example *Alpha 1.0.15*). The last number goes up with each update.
+
+- **Scan** reads a book's barcode with the live camera. If the browser isn't allowed to use the camera, it offers **Take a photo** (opens the camera app) or **Choose from your photos** instead, and remembers that choice.
+- **Add item** starts with the **type**: Book, Jigsaw, Game, Puzzle book, Magazine, Map or Other. The form then only asks what matters for that type. Books get ISBN, photo lookup, title and author. Jigsaws get maker and pieces, and games get maker (neither is checked for missing pieces, per the shop's disclaimer). Magazines get name and issue. Maps get series and number. Each type also starts in its usual section. Publisher, year, notes and (for non-books) barcode are tucked under **More details**.
+- **Section** is chosen one level at a time: the group first, then the section, then any deeper level. Each list only shows what belongs under the one above. If the section has sub-section suggestions (cuisines, counties, languages, jigsaw sizes), a sub-section list appears, with **Other…** for anything else. Where something is kept off the shop floor, the form says so.
+- **The stock list** stays searchable while you scroll. Filter it by section, sort by author, title or newest, and long lists are split by letter. Each row shows the author (surname first), the section, and where it's kept if it's not on the shop floor. The *Gone* tab shows the most recently gone first.
+- **QR code for another phone** (at the bottom, and in Sharing) shows a code to scan with another phone's camera. Once you're connected to the shared sheet, it's a setup code: the other phone opens the app and connects in one go.
+
 ## How it finds book details
 
-- **Barcodes** are scanned live with the camera (ZXing). This needs the browser to be allowed to use the camera; if it isn't, use "Photo or type" instead.
-- **ISBNs** are looked up on Open Library, then Google Books, then Open Library's search index, then five free library catalogues at once: the Library of Congress, the German National Library, the French National Library, the Polish National Library and Crossref (academic books and textbooks). The book's own country is asked first (978-3 German, 978-2 French, 978-83 Polish). None need a key. Phones often aren't allowed to ask the libraries directly, so your Google Sheet's script asks for them; it can only ever fetch from those five. The British Library has no public lookup at the moment, and WorldCat needs a paid licence.
-- **Barcodes:** only book-type barcodes are read. If one reads as something other than an ISBN, the form shows the number and why (a magazine ISSN starting 977, an American shop UPC, or a misread).
+- **ISBNs** are looked up on Open Library and Google Books together. Open Library's record for that exact edition comes first, and Google fills any gaps (publisher, year, language). Google Books sometimes returns a different book for an ISBN search, so its result is only used if it actually carries that ISBN. If the two disagree about the author, the form says so and offers the other one. **Not right? See other matches** asks every source (including the libraries below) and lets you pick.
+- If neither has it: Open Library's search index, then five free library catalogues at once: the Library of Congress, the German National Library, the French National Library, the Polish National Library and Crossref (academic books and textbooks). The book's own country is asked first (978-3 German, 978-2 French, 978-83 Polish). None need a key. Phones often aren't allowed to ask the libraries directly, so your Google Sheet's script asks for them; it can only ever fetch from those five. The British Library has no public lookup at the moment, and WorldCat needs a paid licence.
+- **Searching by title and author** finds the *work*, not your copy, so the publisher and year are left blank rather than borrowed from some other edition. The ISBN is never borrowed from a search result either; it only comes from your scan or your typing.
+- **Barcode photos:** the photo is searched for a barcode at full resolution, in close-up sections, and turned sideways, so a small barcode on a whole-cover photo still reads. Most Android phones also have a built-in barcode reader, which the app uses first. Only book-type barcodes are read. If one reads as something other than an ISBN, the form shows the number and why (a magazine ISSN starting 977, an American shop UPC, or a misread).
+- **Cover and publisher-page photos** (no barcode found): the words are read, any ISBN on the page is looked up, and the publisher, "first published" year and edition are taken from the page. With no ISBN, the words are searched on Open Library and Google Books and you pick the match. The words are read by **Google's text reader** through your sheet's script, which is far more accurate than the phone's own reader (see "Turn on Google's text reader" below). Without it, the phone's own reader (Tesseract) is used, which struggles with real photos.
+- **ISBNs can be typed** into the ISBN box, then tap Look up. If the number has a typo, it says so (the last digit is a check digit).
 - **Books in another language** (when the database says so) go to *Foreign Languages*, with the language as the sub-section, even if the author's usual section is elsewhere. The app never learns Foreign Languages as an author's usual section.
-- **Publisher pages and covers:** take the photo with your normal camera app, then pick it from your gallery. It's read on the phone itself with Tesseract (text recognition). The first time, it downloads about 10 MB of language data, which the browser then keeps. It pulls out any ISBN (including old 9-digit SBNs), the publisher, the "first published" year and the edition. With no ISBN, it searches Open Library using the words it read and lets you pick the match.
-- **ISBNs can be typed** into the "ISBN or barcode" box, then tap Look up. If the number has a typo, it says so (the last digit is a check digit) and searches anyway.
-- **Genre and section** are first guessed from the subjects the book databases return. That's only ever rough. They don't know, for example, whether an author is a woman, so a woman's crime novel comes back as plain fiction.
-- **The app learns from you.** The first time you save a book by a new author, it remembers their section and genre, and the next book by them fills in automatically. If you later save one of their books somewhere else, the form offers a tick-box, *Make this the usual section for…*: leave it unticked for a one-off, tick it to change their usual section.
+- **Sections** are first guessed from the subjects the book databases return. That's only ever rough. They don't know, for example, whether an author is a woman, so a woman's crime novel comes back as plain fiction. (Genre is no longer shown; the section does that job.)
+- **The app learns from you.** The first time you save a book by a new author, it remembers their section, and the next book by them fills in automatically. If you later save one of their books somewhere else, the form offers a tick-box, *Make this the usual section for…*: leave it unticked for a one-off, tick it to change their usual section.
 - **Same book, different ISBN:** if a new ISBN matches a title and author you already have, it offers "Count it as another copy of that". It remembers the extra ISBN, so next time either one finds the same record.
 
 ## Share between phones (Google Sheet)
@@ -81,6 +92,14 @@ You can also work in the *Stock* tab directly:
 **After a big find-and-replace** (say you rename a section and update every book in it), use the **Shop Stock** menu at the top of the sheet → **Send sheet changes to the phones**. Find-and-replace doesn't always count as an edit, so this makes sure every phone catches up. The menu appears after you reload the sheet once.
 
 If your sheet was set up with the first version's two-letter section codes, the new script renames that tab to *Old sections (codes)*, creates the new *Sections* tab, and moves existing books and author rules across to the full names automatically. You can delete the old tab afterwards.
+
+**Turn on Google's text reader (about 2 minutes, once):**
+
+1. In the Apps Script editor, click **Services** (the **+** next to it, in the left-hand column).
+2. Choose **Drive API** and click **Add**.
+3. Deploy a new version (below). Google asks you to authorise again, because the script now also creates and reads Google Docs. Go through **Advanced → Go to… → Allow**.
+
+Each photo becomes a temporary Google Doc called *Shop Stock photo (temporary)* in your Drive for a second or two while it's read, then it's deleted. If one is ever left behind (for example if the connection drops mid-read), it's safe to delete.
 
 **If you change `Code.gs` later:** go to **Deploy → Manage deployments**, click the pencil, choose **New version**, then **Deploy**. This keeps the same web app URL. A brand-new deployment would give a new URL, which every phone would need.
 
