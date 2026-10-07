@@ -178,7 +178,7 @@ form textarea{min-height:60px;resize:vertical}
     <button class="link" id="restore">Restore or import</button>
     <button class="link" id="csv">Download spreadsheet (CSV)</button>
     <button class="link" id="sharing">Sharing</button>
-    <span style="color:var(--muted);font-size:13px;align-self:center">Version 7</span>
+    <span style="color:var(--muted);font-size:13px;align-self:center">Version 8</span>
   </div>
 </div>
 
@@ -444,17 +444,43 @@ function suggestSection(f, subjects){
   if (f.kind === "Jigsaw"){ const pc = (String(f.title || "").match(/(\d{3,4})\s*(?:pc|pieces?)/i) || [])[1]; return pick("Jigsaws", "", ["250","500","1000"].includes(pc) ? pc + " pieces" : ""); }
   if (f.kind === "Game" || f.kind === "Puzzle book" || /crossword|puzzles/.test(s)) return pick("Games & Puzzles");
   if (f.kind === "Magazine") return pick("Magazines", "", first([[/fishing|angling/,"Fishing"],[/motorcycl/,"Motorcycles"],[/automobile|\bcars\b/,"Cars"],[/railroad|railway|train|\bbus/,"Trains & Buses"]]));
-  if (f.kind === "Map" || /atlases|\bmaps\b|walking|hiking/.test(s)) return pick("Atlases, Maps & Walks");
-  if (/dictionar|thesaur/.test(s)) return /bilingual|french|german|spanish|italian|polish/.test(s) ? pick("Bilingual") : pick("English Dictionaries");
-  if (/english language.*(foreign|second)|\besl\b|\befl\b/.test(s)) return pick("Learning English");
+  const st = s + " | " + String(f.title || "").toLowerCase();   // subjects plus title
+  if (f.kind === "Map" || /atlases|\bmaps\b|walking guides|\bwalks\b|hiking|footpaths|trails|\bwalking\b.*guidebooks|guidebooks.*\bwalking\b/.test(s)){
+    if (/atlas/.test(st)) return pick("Atlases");
+    return pick(/europe|america|asia|africa|australia|world\b/.test(s) && !/great britain|england|scotland|wales|ireland|united kingdom/.test(s) ? "International" : "UK", "Other");
+  }
+  if (/large type books|large print/.test(st)) return pick("Large Print");
 
-  if (/juvenile|children|picture books|young adult|board books/.test(s)){
-    if (/young adult/.test(s)) return pick("Young Adult", "Kids");
-    if (/nonfiction|non-fiction/.test(s) || !/fiction|stories|picture|board books/.test(s)){
+  // Dictionaries: home-nation languages, then foreign languages, then English
+  const LANGS = [[/japanese/,"Japanese"],[/chinese|mandarin/,"Mandarin"],[/french/,"French"],[/german/,"German"],[/spanish/,"Spanish"],[/italian/,"Italian"],[/polish/,"Polish"],
+    [/portuguese/,"Portuguese"],[/punjabi/,"Punjabi"],[/urdu/,"Urdu"],[/arabic/,"Arabic"],[/romanian/,"Romanian"],[/russian/,"Russian"],[/ukrainian/,"Ukrainian"]];
+  if (/dictionar|thesaur|phrase ?books?|glossar/.test(st)){
+    if (/welsh/.test(st)) return pick("Welsh Dictionaries");
+    if (/cornish/.test(st)) return pick("Cornish");
+    if (/gaelic|irish language/.test(st)) return pick("Irish & Gaelic");
+    if (/scots language|scottish/.test(st)) return pick("Scottish Dictionaries");
+    if (/picture dictionar|visual dictionar/.test(st)) return pick("Visual Dictionaries");
+    if (/english language.*(foreign|second)|learner/.test(st)) return pick("Learner's Dictionaries");
+    const lang = (LANGS.find(([re]) => re.test(st)) || [])[1];
+    if (lang || /bilingual|polyglot/.test(st)) return pick("Bilingual Dictionaries", "Foreign", lang || "Other");
+    return pick("English Dictionaries");
+  }
+  if (/english language.*(foreign|second)|\besl\b|\befl\b/.test(s)) return pick("Learner's Dictionaries");
+
+  // Children's books: only when the subjects say the book is FOR children.
+  // Books ABOUT children (parenting, teaching, child psychology, autism guides...) never come here,
+  // and a children's non-fiction book is never put in Kids' Fiction.
+  const forKids = /juvenile (fiction|literature|nonfiction|non-fiction|poetry|works)|children's (stories|fiction|books|poetry|songs)|picture books|board books|young adult (fiction|literature)|stories in rhyme|readers \(primary\)|beginning readers/.test(s)
+    && !/history and criticism|criticism|study and teaching|bibliograph/.test(s);
+  if (forKids){
+    if (/\bannual\b/.test(st)) return pick("Annuals", "Kids");
+    const kidsFiction = /juvenile fiction|children's (stories|fiction)|stories in rhyme|picture books|board books|young adult fiction/.test(s);
+    if (!kidsFiction){
       if (/examination|textbook|gcse|study guides/.test(s)) return pick("GCSE");
-      const n = first([[/space|planets|astronomy/,"Space"],[/dinosaur/,"Dinosaurs"],[/sport/,"Sport"],[/activity books|handicraft|cooking/,"Activities & Crafts"],[/encyclopedia|dictionar|atlases/,"Reference & Encyclopedias"],[/alphabet|counting|concept/,"Early Learning"],[/nature|plants|weather/,"Nature"],[/science/,"Science"],[/history/,"History"],[/\bart\b|drawing/,"Art"],[/biograph/,"People"],[/geograph|travel|countries/,"Places"],[/automobile|\bcars\b|vehicles/,"Cars"],[/animal|pets|birds|wildlife/,"Animals"]]);
+      const n = first([[/bible|religio|christian|prayer/,"Religion"],[/space|planets|astronomy/,"Space"],[/dinosaur/,"Dinosaurs"],[/sport/,"Sport"],[/activity books|handicraft|cooking/,"Activities & Crafts"],[/encyclopedia|dictionar|atlases/,"Reference & Encyclopedias"],[/alphabet|counting|concept/,"Early Learning"],[/nature|plants|weather/,"Nature"],[/science/,"Science"],[/history/,"History"],[/\bart\b|drawing/,"Art"],[/biograph/,"People"],[/geograph|travel|countries/,"Places"],[/automobile|\bcars\b|vehicles/,"Cars"],[/animal|pets|birds|wildlife/,"Animals"]]);
       return n ? pick(n, "Kids' Non") : {section: "", subsection: ""};
     }
+    if (/young adult/.test(s)) return pick("Young Adult", "Kids");
     if (/picture books|board books|baby|toddler/.test(s)) return pick("Babies & Toddlers");
     if (/beginning readers|readers \(primary\)|early readers|phonics/.test(s)) return pick("Early Readers");
     return pick("Confident Readers");
@@ -467,6 +493,7 @@ function suggestSection(f, subjects){
   if (/drama|plays\b/.test(s) && !/history/.test(s)) return pick("Plays");
   if (/fiction|novel|stories/.test(s) && !/nonfiction/.test(s)){
     if (/romance|love stories/.test(s)) return pick("Romance");
+    if (/short stories|anthologies/.test(s)) return pick("Short Stories");
     if (/science fiction/.test(s)) return pick("Science Fiction");
     if (/fantasy/.test(s)) return pick("Fantasy");
     if (/world war|war stories|war fiction/.test(s)) return pick("Wartime Fiction");
@@ -480,7 +507,13 @@ function suggestSection(f, subjects){
     const bi = first([[/london/,["London",""]],[/scotland/,["Scotland",""]],[/wales/,["Wales",""]],[/northern ireland/,["Ireland","Northern Ireland"]],[/ireland/,["Ireland","Republic of Ireland"]],
       [/isle of man/,["Other Islands","Isle of Man"]],[/channel islands/,["Other Islands","Channel Islands"]],[/isle of wight/,["Other Islands","Isle of Wight"]],[/england|great britain|british isles/,["England",""]]]);
     if (bi){
-      if (bi[0] === "England"){ const county = (secInfo(findSection("England", "Adult Non"))?.subs || []).find(c => s.includes(c.toLowerCase().split(" & ")[0])); return pick("England", "Adult Non", county || ""); }
+      // Find the region/area whose sub-section names a place in the subjects (e.g. "Coventry & Warwickshire")
+      const words = sub => sub.toLowerCase().replace(/\(.*?\)/g, " ").split(/&|\/|,| and /).map(w => w.replace(/^\s*the\s+/, "").trim()).filter(w => w.length > 3);
+      const named = list => { for (const x of list) for (const sub of x.subs) if (words(sub).some(w => new RegExp("\\b" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(s))) return {section: x.path, subsection: sub}; return null; };
+      const area = SECTIONS.filter(x => x.path.includes("British Isles > " + bi[0]));
+      const hit = named(area);
+      if (hit) return hit;
+      if (bi[0] === "England"){ const gen = area.find(x => /general/i.test(secShort(x.path))) || area[0]; return {section: gen ? gen.path : "", subsection: ""}; }
       return pick(bi[0], "Adult Non", bi[1]);
     }
     return pick("International Travel", "", first([[/europe|france|spain|italy|germany|greece|portugal/,"Europe"],[/asia|china|japan|india/,"Asia"],[/africa/,"Africa"],[/united states|canada|mexico/,"North America"],[/south america|brazil|peru|argentina/,"South America"],[/australia|new zealand/,"Australia & Oceania"],[/middle east/,"Middle East"],[/arctic|antarctic|polar/,"Polar"]]));
@@ -489,6 +522,14 @@ function suggestSection(f, subjects){
     [/cook|recipe|baking/, "Cookery", [[/chinese/,"Chinese"],[/india/,"Indian"],[/ital/,"Italian"],[/french/,"French"],[/mexic/,"Mexican"],[/thai|asian/,"Thai & South-East Asian"],[/vegetarian|vegan/,"Vegetarian & Vegan"],[/gluten|diet|reducing/,"Diet & Free-From"],[/baking|bread|cakes/,"Baking"],[/british|english/,"British"]]],
     [/knitting|crochet|sewing|needlework|embroider|flower arrang|woodwork|handicraft/, "Crafts", [[/knit/,"Knitting"],[/crochet/,"Crochet"],[/sewing|needlework/,"Sewing"],[/embroider/,"Embroidery"],[/flower/,"Flower Arranging"],[/woodwork/,"Woodwork"]]],
     [/motorcycl|automobile|railroad|railway|locomotive|tramway|\bbuses\b|aircraft|airplane|aeronautic|ships|boats/, "Transport", [[/motorcycl/,"Motorcycles"],[/automobile/,"Cars"],[/railroad|railway|locomotive/,"Trains & Railways"],[/tram/,"Trams"],[/\bbus/,"Buses"],[/aircraft|airplane|aeronautic/,"Planes"],[/ship|boat/,"Ships & Boats"]]],
+    [/gcse|a level|examinations.*study guides|revision guides/, "GCSE"],
+    [/parenting|child rearing|child development|parent and child|parents of|autistic children|asperger|children with disabilities|child psychology/, "Parenting"],
+    [/teaching|teachers|classroom|education|curricul|lesson planning|pedagog/, "Learning to Teach", [[/primary|elementary/,"Primary"],[/secondary|high school/,"Secondary"],[/special education|special needs|\bsen\b/,"SEN"],[/early childhood|preschool|nursery/,"Early Years"]]],
+    [/hymns?\b|hymnals?/, "Religion", [[/./,"Hymn Books"]]],
+    [/sheet music|songbooks?|musical scores|piano music|vocal music|scores and parts/, "Music", [[/./,"Sheet Music & Songbooks"]]],
+    [/do-it-yourself|home improvement|dwellings.*(maintenance|repair)|interior decoration|house painting|plumbing|electric wiring/, "Home & DIY", [[/interior|decorat|painting/,"Interiors & Decorating"],[/plumbing|electric/,"Plumbing & Electrics"],[/do-it-yourself|repair|improvement/,"DIY & Repairs"]]],
+    [/birds|bird watching|wild ?flowers|insects|butterflies|geology|weather|meteorolog|natural history|countryside|country life/, "Countryside", [[/bird/,"Birds"],[/flower/,"Wild Flowers"],[/insect|butterfl/,"Insects & Butterflies"],[/geology/,"Geology"],[/weather|meteorolog/,"Weather"],[/natural history/,"Natural History"],[/country life|countryside/,"Country Life"]]],
+    [/physical fitness|exercise|\bdiet\b|nutrition|weight loss|yoga|pilates|well-being|wellbeing|\bhealth\b/, "Health & Fitness", [[/diet|nutrition|weight/,"Diet & Nutrition"],[/fitness|exercise/,"Fitness & Exercise"],[/yoga|pilates/,"Yoga & Pilates"],[/well-?being/,"Wellbeing"]]],
     [/personal narratives/, "War Stories (Factual)"],
     [/prehistor|stone age|bronze age|neolithic/, "Prehistoric Britain"], [/iron age|celts/, "Pre-Roman Britain"], [/roman britain|romans.*britain|hadrian/, "Roman Britain"],
     [/anglo-saxon/, "Anglo-Saxon Britain"], [/viking/, "Viking Britain"], [/norman|1066/, "Norman Britain"], [/plantagenet|magna carta/, "Early Plantagenets"],
@@ -497,7 +538,7 @@ function suggestSection(f, subjects){
     [/world war, 1914|world war i\b|first world war/, "WW1"], [/world war, 1939|world war ii|second world war/, "WW2"], [/cold war/, "Cold War"],
     [/united states.*military|american.*military/, "American Military History"], [/united states.*history|american history/, "American History"],
     [/kings and rulers|monarchs/, "British Rulers"], [/royal family|princes|princess/, "Royals"],
-    [/parenting|child rearing/, "Parenting"], [/sports?\b|football|cricket|golf|rugby|tennis/, "Sport", [[/football|soccer/,"Football"],[/cricket/,"Cricket"],[/rugby/,"Rugby"],[/golf/,"Golf"],[/tennis/,"Tennis"],[/motor ?sport|racing cars|formula/,"Motorsport"],[/horse racing/,"Horse Racing"],[/boxing/,"Boxing"],[/athletics/,"Athletics"],[/cycling/,"Cycling"]]],
+[/sports?\b|football|cricket|golf|rugby|tennis/, "Sport", [[/football|soccer/,"Football"],[/cricket/,"Cricket"],[/rugby/,"Rugby"],[/golf/,"Golf"],[/tennis/,"Tennis"],[/motor ?sport|racing cars|formula/,"Motorsport"],[/horse racing/,"Horse Racing"],[/boxing/,"Boxing"],[/athletics/,"Athletics"],[/cycling/,"Cycling"]]],
     [/photograph/, "Photography"],
     [/biograph|memoir/, "Biographies"], [/kings and rulers|queens|royal/, "Royals"], [/politic|government/, "Politics"],
     [/religio|bible|christian|islam|buddhis|mytholog|folklore/, "Religion"], [/true crime|criminals|murder|crime/, "True Crime"],
@@ -506,7 +547,7 @@ function suggestSection(f, subjects){
     [/gardening|horticulture/, "Gardening"], [/\btrees\b|forests/, "Tree-Mendous"], [/ocean|marine|\bsea\b|seashore/, "Oceans"],
     [/rivers|lakes|canals|waterways/, "Lakes & Rivers"], [/animal|pets|dogs|cats|birds|wildlife|zoology/, "Animals"],
     [/antique|collectibles/, "Antiques"], [/music/, "Music"], [/painting|watercolou?r/, "Painting"], [/\bart\b|artists|sculpture|drawing/, "Art"],
-    [/medic|health|anatomy|nursing/, "Medical"],
+    [/medic|anatomy|nursing|diseases|surgery/, "Medical"],
     [/physics|chemistry|biology|engineering|mathematic|philosophy|sociology|psychology|science/, "Science", [[/physics/,"Physics"],[/chemistry/,"Chemistry"],[/biology/,"Biology"],[/engineering/,"Engineering"],[/mathematic/,"Maths"],[/philosophy/,"Philosophy"],[/sociology/,"Sociology"],[/psychology/,"Psychology"]]],
   ];
   for (const [re, name, subs] of NF) if (re.test(s)) return pick(name, "Adult Non", subs ? first(subs) : "");
