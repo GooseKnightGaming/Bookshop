@@ -74,6 +74,9 @@ header h1{font:650 30px/1.1 var(--serif);margin:0 0 6px;letter-spacing:-.01em}
 .row .a{color:var(--muted);font-size:15px}
 .row .sec{font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px;flex:none;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 optgroup{font-weight:700}
+form label.chk{display:flex;gap:10px;align-items:flex-start;font-weight:400;color:var(--ink);font-size:15px;margin:10px 0 0}
+form label.chk[hidden]{display:none}
+form label.chk input{width:22px;height:22px;flex:none;margin:0}
 .count{flex:none;min-width:40px;height:40px;border-radius:20px;display:grid;place-items:center;font-weight:700;background:var(--green-soft);color:var(--green)}
 .count.many{background:var(--green);color:var(--green-ink)}
 .gone{flex:none;text-align:right;font-size:13px;color:var(--out);line-height:1.2;min-width:62px}
@@ -178,7 +181,7 @@ form textarea{min-height:60px;resize:vertical}
     <button class="link" id="restore">Restore or import</button>
     <button class="link" id="csv">Download spreadsheet (CSV)</button>
     <button class="link" id="sharing">Sharing</button>
-    <span style="color:var(--muted);font-size:13px;align-self:center">Version 9</span>
+    <span style="color:var(--muted);font-size:13px;align-self:center">Version 10</span>
   </div>
 </div>
 
@@ -331,7 +334,8 @@ const toSection = ([g, n, subs, where]) => { n = String(n).split(">").map(x => x
 const DEFAULT_SECTIONS = DEFAULT_ROWS.map(toSection);
 let SECTIONS = (() => { try { const x = JSON.parse(localStorage.getItem("sections3") || "null"); if (Array.isArray(x) && x.length && x[0].path) return x; } catch {} return DEFAULT_SECTIONS; })();
 // Learned "this author's books go here" rules, keyed by normalised author name
-let RULES = (() => { try { const r = JSON.parse(localStorage.getItem("rules") || "{}") || {}; for (const k in r) if (MIGRATE[r[k].section]) r[k].section = MIGRATE[r[k].section]; return r; } catch { return {}; } })();
+// key (see groupKey) -> list of rows; an author can have several rows told apart by clue words
+let RULES = {};   // filled in just below the author-name helpers
 // Surnames that go straight to Major Thrillers
 const MAJOR_THRILLERS = ["rankin","francis","clancy","child","grisham","patterson","baldacci","forsyth","ludlum","maclean","cussler","connelly","higgins","archer","koontz","brown","reacher"];
 const KINDS = ["Book","Jigsaw","Puzzle book","Game","Magazine","Map","Other"];
@@ -343,7 +347,48 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const norm = s => (s || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
   .replace(/^(the|a|an)\s+/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const keyOf = (t, a) => norm(t) + "|" + norm(a);
-const surname = a => norm((a || "").split(/[,;&]| and /)[0]).split(" ").pop() || "";
+/* ================= author names =================
+   Accents and letters like ø and æ are folded, apostrophes ignored, words in brackets
+   (e.g. "(physicist)") are labels only. "Rankin, Ian" = "Ian Rankin", and a pair matches in either order. */
+const FOLD = {"ø":"o","Ø":"o","æ":"ae","Æ":"ae","œ":"oe","Œ":"oe","ß":"ss","ł":"l","Ł":"l","đ":"d","Đ":"d","þ":"th","Þ":"th","ı":"i"};
+const fold = s => String(s || "").replace(/[øØæÆœŒßłŁđĐþÞı]/g, c => FOLD[c]).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/['’‘`]/g, "");
+const PART_SPLIT = /\s*(?:;|&|\+|\band\b|\bwith\b)\s*/i;
+// Splits a credit line into separate people, keeping their original spelling
+function peopleRaw(author){
+  const out = [];
+  for (const part of String(author || "").replace(/\([^)]*\)/g, " ").split(PART_SPLIT)){
+    const c = part.split(",").map(x => x.trim()).filter(Boolean);
+    if (c.length >= 2 && c.every(x => x.split(/\s+/).length >= 2)) out.push(...c);   // "Ian Rankin, Val McDermid"
+    else if (c.length) out.push(c.join(", "));                                        // "Rankin, Ian" is one person
+  }
+  return out;
+}
+const personKey = p => fold(p).replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(t => t && !/^(jr|sr|ii|iii)$/.test(t)).sort().join(" ");
+const groupKey = a => [...new Set(peopleRaw(a).map(personKey).filter(Boolean))].sort().join(" + ");
+const isAnon = a => /^\s*(anon(ymous)?|unknown|author unknown|not known|various( authors)?|n\/?a|none)\.?\s*$/i.test(String(a || "").replace(/\([^)]*\)/g, ""));
+const PARTICLES = /^(du|de|del|della|der|den|di|da|le|la|van|von|ten|ter|st\.?|bin|ibn|al)$/i;
+// "Daphne du Maurier" -> "du Maurier, Daphne"
+function surnameFirst(p){
+  p = String(p).trim();
+  if (!p || p.includes(",")) return p;
+  const t = p.split(/\s+/);
+  let suffix = "";
+  if (t.length > 2 && /^(jr\.?|sr\.?|ii|iii)$/i.test(t[t.length - 1])) suffix = ", " + t.pop();
+  if (t.length < 2) return p;
+  let i = t.length - 1;
+  while (i > 1 && PARTICLES.test(t[i - 1])) i--;
+  return `${t.slice(i).join(" ")}, ${t.slice(0, i).join(" ")}${suffix}`;
+}
+const displayAuthor = a => isAnon(a) || !a ? (a || "") : peopleRaw(a).map(surnameFirst).join(" & ");
+RULES = (() => { try {
+  const r = JSON.parse(localStorage.getItem("rules2") || "null");
+  if (r) return r;
+  const old = JSON.parse(localStorage.getItem("rules") || "{}") || {}, out = {};   // older single-row format
+  for (const k in old){ const x = old[k]; if (!x || !x.author) continue; (out[groupKey(x.author)] ||= []).push({...x, section: MIGRATE[x.section] || x.section, clues: ""}); }
+  return out;
+} catch { return {}; } })();
+
+const surname = a => { if (isAnon(a)) return ""; const p = peopleRaw(a)[0] || ""; return norm(p.includes(",") ? p.split(",")[0] : p.split(/\s+/).pop()); };
 const fmtDate = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("en-GB", {day:"numeric", month:"short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric"}); };
 const nowISO = () => new Date().toISOString();
 const hasSection = p => SECTIONS.some(x => x.path === p);
@@ -490,6 +535,7 @@ function suggestSection(f, subjects){
   if (f.year && +f.year < 1950) return pick("Old Books");
   if (/western stories|westerns|horses|horsemanship|equestrian/.test(s)) return pick("Westerns & Horses");
 
+  if (/epic poetry|classical literature|greek literature|latin literature|old english|middle english|medieval literature|sagas|arthurian romances/.test(s) && !/history and criticism/.test(s)) return pick("Historical Classics");
   if (/mills|silhouette|harlequin/i.test(f.publisher || "")) return pick("Romance", "", /silhouette/i.test(f.publisher) ? "Silhouette" : "Mills & Boon");
   if (/poetry|poems/.test(s)) return pick("Poetry");
   if (/drama|plays\b/.test(s) && !/history/.test(s)) return pick("Plays");
@@ -568,19 +614,19 @@ async function lookupISBN(isbn){
   let b = j && j["ISBN:" + isbn];
   if (b){
     const subjects = (b.subjects || []).map(x => x.name).slice(0, 20);
-    return {title: b.title + (b.subtitle ? ": " + b.subtitle : ""), author: (b.authors || []).map(a => a.name).join(", "),
+    return {title: b.title + (b.subtitle ? ": " + b.subtitle : ""), author: (b.authors || []).map(a => a.name).join(" & "),
       publisher: b.publishers?.[0]?.name || "", year: yearOf(b.publish_date), subjects};
   }
   j = await getJSON(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
   const v = j?.items?.[0]?.volumeInfo;
-  if (v) return {title: v.title + (v.subtitle ? ": " + v.subtitle : ""), author: (v.authors || []).join(", "),
+  if (v) return {title: v.title + (v.subtitle ? ": " + v.subtitle : ""), author: (v.authors || []).join(" & "),
     publisher: v.publisher || "", year: yearOf(v.publishedDate), subjects: v.categories || []};
   return null;
 }
 async function searchBooks(q){
   const j = await getJSON(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=6&fields=title,author_name,first_publish_year,isbn,subject,publisher`);
   return (j?.docs || []).map(d => ({
-    title: d.title || "", author: (d.author_name || []).slice(0, 2).join(", "), year: d.first_publish_year ? String(d.first_publish_year) : "",
+    title: d.title || "", author: (d.author_name || []).slice(0, 3).join(" & "), year: d.first_publish_year ? String(d.first_publish_year) : "",
     publisher: d.publisher?.[0] || "", subjects: (d.subject || []).slice(0, 20),
     isbn: (d.isbn || []).map(x => x.length === 10 && valid10(x) ? to13(x) : x).find(isISBN13) || ""
   }));
@@ -590,29 +636,72 @@ function fromLookup(r, extra = {}){
     year: extra.year || r.year || "", barcode: extra.barcode || "", notes: extra.notes || "", genre: genreFrom(r.subjects || [])};
   const g = suggestSection(f, r.subjects || []);
   f.section = g.section; f.subsection = g.subsection;
-  return applyRule(f);
+  return applyRule(f, [...(r.subjects || []), r.title || ""].join(" | "));
 }
-function ruleFor(author){
-  if (!author) return null;
-  return RULES[norm(author)] || RULES[norm(String(author).split(/,|;| and | & /)[0])] || null;
+const saveRules = () => localStorage.setItem("rules2", JSON.stringify(RULES));
+function addRule(x){
+  const k = groupKey(x.author); if (!k) return;
+  const [sec, sub] = remap(x.section, x.subsection);
+  (RULES[k] ||= []).push({author: x.author, section: sec, subsection: sub || "", genre: x.genre || "", clues: x.clues || ""});
 }
-function applyRule(f){
-  const r = ruleFor(f.author);
-  if (r && r.section && hasSection(r.section)){
-    f.section = r.section; f.subsection = r.subsection || "";
-    if (r.genre) f.genre = r.genre;
+const clueHit = (r, text) => String(r.clues || "").split(",").map(c => fold(c).trim()).filter(Boolean)
+  .some(c => new RegExp("(^|[^a-z0-9])" + c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "($|[^a-z0-9])").test(text));
+// Chooses between an author's rows: one row, or all rows agreeing -> that; else the row whose clues match;
+// else a row with no clues (the usual section); else nothing, with a note for the volunteer.
+function pickRule(rows, text){
+  const usable = (rows || []).filter(r => r.section && hasSection(r.section));
+  if (!usable.length) return {rule: null};
+  const agree = list => list.every(r => r.section === list[0].section);
+  if (agree(usable)) return {rule: usable[0]};
+  const hits = usable.filter(r => clueHit(r, text));
+  if (hits.length && agree(hits)) return {rule: hits[0]};
+  const plain = usable.filter(r => !String(r.clues || "").trim());
+  if (plain.length && agree(plain)) return {rule: plain[0]};
+  return {rule: null, note: `${displayAuthor(usable[0].author)} has more than one entry in the Authors list, and nothing about this book matched their clue words, so check the section.`};
+}
+function resolveRule(author, text){
+  if (!author || isAnon(author)) return {rule: null};
+  text = fold(text || "");
+  const g = groupKey(author);
+  if (!g) return {rule: null};
+  if (RULES[g]) return pickRule(RULES[g], text);
+  const keys = peopleRaw(author).map(personKey).filter(Boolean);
+  if (keys.length < 2) return {rule: null};
+  const res = keys.map(k => pickRule(RULES[k], text));
+  const found = res.filter(x => x.rule).map(x => x.rule), note = res.find(x => x.note);
+  if (found.length && !note && found.every(r => r.section === found[0].section)) return {rule: found[0]};
+  if (found.length > 1 || (found.length && note)) return {rule: null, note: "These authors usually go in different sections, so the section is a guess from the book's subjects. Check it."};
+  return note || {rule: null};
+}
+function applyRule(f, text){
+  const {rule, note} = resolveRule(f.author, text);
+  if (rule){
+    f.section = rule.section; f.subsection = rule.subsection || "";
+    if (rule.genre) f.genre = rule.genre;
     f._rule = true;
-  }
+  } else if (note) f._ruleNote = note;
   return f;
 }
-function learnRule(author, section, genre, subsection){
-  if (!author || !section) return;
-  const k = norm(author), cur = RULES[k];
+// The single existing rule for exactly this credit line, if there is one (used by the tick-box)
+const ownRule = author => { const r = RULES[groupKey(author)]; return r && r.length === 1 ? r[0] : null; };
+// New authors are remembered automatically. An existing author's usual section only changes when the
+// tick-box is ticked, so one book shelved somewhere unusual doesn't move all their others.
+function learnRule(author, section, genre, subsection, makeUsual){
+  if (!author || !section || isAnon(author)) return;
+  const k = groupKey(author); if (!k) return;
   genre = genre || ""; subsection = subsection || "";
-  if (cur && cur.section === section && (cur.genre || "") === genre && (cur.subsection || "") === subsection) return;
-  RULES[k] = {author, section, subsection, genre};
-  localStorage.setItem("rules", JSON.stringify(RULES));
-  queue({t: "rule", author, section, subsection, genre});
+  const rows = RULES[k] || [];
+  if (rows.length > 1) return;
+  if (rows.length === 1){
+    const r = rows[0];
+    if (!makeUsual || (r.section === section && (r.subsection || "") === subsection && (r.genre || "") === genre)) return;
+    RULES[k] = [{...r, section, subsection, genre}];
+  } else {
+    if (resolveRule(author, "").rule?.section === section) return;   // the people's own rules already cover it
+    RULES[k] = [{author, section, subsection, genre, clues: ""}];
+  }
+  saveRules();
+  queue({t: "rule", author, section, subsection, genre, replace: rows.length === 1});
 }
 function applyConfig(c){
   if (!c) return;
@@ -621,9 +710,9 @@ function applyConfig(c){
     localStorage.setItem("sections3", JSON.stringify(SECTIONS));
   }
   if (Array.isArray(c.rules)){
-    const r = {};
-    for (const x of c.rules) if (x && x.author){ const [sec, sub] = remap(x.section, x.subsection); r[norm(x.author)] = {author: x.author, section: sec, subsection: sub, genre: x.genre || ""}; }
-    RULES = r; localStorage.setItem("rules", JSON.stringify(RULES));
+    RULES = {};
+    for (const x of c.rules) if (x && x.author) addRule(x);
+    saveRules();
   }
   render();
 }
@@ -767,7 +856,8 @@ async function sync(){
     await takeFromServer(res.items || [], new Set(later.map(b => b.op.id || b.op.item?.id)));
     if (res.config){
       applyConfig(res.config);
-      for (const b of later) if (b.op.t === "rule") RULES[norm(b.op.author)] = {author: b.op.author, section: b.op.section, subsection: b.op.subsection || "", genre: b.op.genre || ""};
+      for (const b of later) if (b.op.t === "rule"){ const k = groupKey(b.op.author); if (b.op.replace || !RULES[k]) RULES[k] = []; RULES[k].push({...b.op, clues: ""}); }
+      saveRules();
     }
     since = res.rev || since; localStorage.setItem("syncSince", String(since));
     lastSync = Date.now(); syncProblem = "";
@@ -806,11 +896,12 @@ async function connect(url, code){
   if (toSend.length) await tx("outbox", "readwrite", s => toSend.forEach(d => s.add({t: "restore", item: d})));
   await takeFromServer(server);
   // Author rules learned on this phone that the sheet doesn't have yet
-  const serverRules = new Set((res.config?.rules || []).map(x => norm(x.author)));
-  const myRules = Object.values(RULES).filter(x => !serverRules.has(norm(x.author)));
+  const serverRules = new Set((res.config?.rules || []).map(x => groupKey(x.author)));
+  const myRules = Object.entries(RULES).filter(([k]) => !serverRules.has(k)).flatMap(([, rows]) => rows);
   if (myRules.length) await tx("outbox", "readwrite", st => myRules.forEach(x => st.add({t: "rule", ...x})));
   applyConfig(res.config);
-  for (const x of myRules) RULES[norm(x.author)] = x;
+  for (const x of myRules) addRule(x);
+  saveRules();
   since = res.rev || 0; localStorage.setItem("syncSince", String(since));
   await sync();
   return {fromSheet: server.filter(it => !it.deleted).length, sent: toSend.length};
@@ -896,7 +987,7 @@ function render(){
     rows = rows.filter(d => norm([d.title, d.author, d.genre, d.publisher, d.notes, d.section, d.subsection].join(" ")).includes(q) || (raw.length > 3 && ((d.barcode || "") + "," + (d.altCodes || "")).includes(raw)));
   }
   if (tab === "gone") rows.sort((a, b) => (b.lastOut || "").localeCompare(a.lastOut || ""));
-  else rows.sort((a, b) => (surname(a.author) || "zzz").localeCompare(surname(b.author) || "zzz") || norm(a.title).localeCompare(norm(b.title)));
+  else rows.sort((a, b) => (surname(a.author) || norm(a.title)).localeCompare(surname(b.author) || norm(b.title)) || norm(a.title).localeCompare(norm(b.title)));
 
   const list = $("#list");
   if (!rows.length){
@@ -907,7 +998,7 @@ function render(){
   }
   list.innerHTML = rows.slice(0, SHOW_MAX).map(d => `
     <li><button class="row" data-id="${esc(d.id)}">
-      <span class="txt"><span class="t">${esc(d.title || "Untitled")}</span><span class="a">${esc(d.author || d.kind || "")}</span></span>
+      <span class="txt"><span class="t">${esc(d.title || "Untitled")}</span><span class="a">${esc(displayAuthor(d.author) || d.kind || "")}</span></span>
       ${d.section ? `<span class="sec" title="${esc(secName(d.section))}">${esc(d.subsection || secShort(d.section))}</span>` : ""}
       ${d.count > 0 ? `<span class="count${d.count > 1 ? " many" : ""}" aria-label="${d.count} in stock">${d.count}</span>`
                     : `<span class="gone">Gone<br>${esc(fmtDate(d.lastOut))}</span>`}
@@ -948,7 +1039,7 @@ function showItem(id, opts = {}){
   openSheet(`
     <div class="head">${cover}<div>
       <h2 id="sheet-title">${esc(d.title || "Untitled")}</h2>
-      <p class="by">${esc(d.author || "")}${d.kind && d.kind !== "Book" ? `${d.author ? ", " : ""}${esc(d.kind)}` : ""}</p>
+      <p class="by">${esc(displayAuthor(d.author))}${d.kind && d.kind !== "Book" ? `${d.author ? ", " : ""}${esc(d.kind)}` : ""}</p>
     </div></div>
     ${dup}${status}
     <div class="pair">
@@ -990,7 +1081,8 @@ function showForm(f, opts = {}){
   const otherEdition = m && f.barcode && !codes.includes(f.barcode);
   const match = m ? `<p class="note ${m.count > 0 ? "dup" : "info"}">${m.count > 0 ? `Looks like “${esc(m.title)}”, already on the shelf (${m.count}).` : `Looks like “${esc(m.title)}”, which you've had before.`}${otherEdition ? " It has a different ISBN, so it may be another edition." : ""}<br>
       <button type="button" class="link" data-act="addcopy" style="padding:4px 14px 0 0">Count it as another copy of that</button><button type="button" class="link" data-act="use" style="padding:4px 0 0">Open that record</button></p>` : "";
-  const rule = !editing && f._rule ? `<p class="note info">Section filled in from earlier books by ${esc(f.author)}.</p>` : "";
+  const rule = !editing && f._rule ? `<p class="note info">Section filled in from the Authors list for ${esc(displayAuthor(f.author))}.</p>`
+    : !editing && f._ruleNote ? `<p class="note dup">${esc(f._ruleNote)}</p>` : "";
   const msg = opts.msg ? `<p class="note info">${esc(opts.msg)}</p>` : "";
   openSheet(`
     <h2 id="sheet-title">${editing ? "Edit details" : "New item"}</h2>
@@ -1001,6 +1093,7 @@ function showForm(f, opts = {}){
       <label for="f-title">Title</label><input id="f-title" name="title" value="${esc(f.title)}">
       <label for="f-author">Author (or maker)</label><input id="f-author" name="author" value="${esc(f.author)}">
       <label for="f-section">Section</label><select id="f-section" name="section">${sectionOptions(f.section)}</select>
+      <label class="chk" id="usual" hidden><input type="checkbox" name="makeUsual"> <span id="usual-text"></span></label>
       <div class="two">
         <div><label for="f-sub">Sub-section</label><input id="f-sub" name="subsection" list="sub-list" value="${esc(f.subsection)}" placeholder="optional"><datalist id="sub-list"></datalist></div>
         <div><label for="f-kind">Type</label><select id="f-kind" name="kind">${KINDS.map(k => `<option${(f.kind || "Book") === k ? " selected" : ""}>${k}</option>`).join("")}</select></div>
@@ -1032,13 +1125,25 @@ function showForm(f, opts = {}){
   const fillSubs = () => { $("#sub-list").innerHTML = (secInfo($("#f-section").value)?.subs || []).map(x => `<option value="${esc(x)}">`).join(""); };
   fillSubs();
   $("#f-section").addEventListener("change", fillSubs);
+  // Tick-box: shown when the chosen section differs from this author's usual one
+  const usualBox = () => {
+    const a = $("#f-author").value.trim(), r = ownRule(a), sec = $("#f-section").value, box = $("#usual");
+    const show = !!(r && sec && r.section !== sec && !isAnon(a));
+    box.hidden = !show;
+    if (show) $("#usual-text").textContent = `Make this the usual section for ${displayAuthor(a)} (usually ${secShort(r.section)})`;
+    else box.querySelector("input").checked = false;
+  };
+  usualBox();
+  $("#f-section").addEventListener("change", usualBox);
   // Typing an author you've sorted before fills in their usual section
   $("#f-author").addEventListener("change", e => {
-    const r = ruleFor(e.target.value), sec = $("#f-section");
-    if (!r || !r.section || !hasSection(r.section) || sec.value) return;
-    sec.value = r.section; fillSubs();
-    if (r.subsection && !$("#f-sub").value) $("#f-sub").value = r.subsection;
-    if (r.genre && !$("#f-genre").value) $("#f-genre").value = r.genre;
+    const {rule: r} = resolveRule(e.target.value, $("#f-title").value), sec = $("#f-section");
+    if (r && r.section && hasSection(r.section) && !sec.value){
+      sec.value = r.section; fillSubs();
+      if (r.subsection && !$("#f-sub").value) $("#f-sub").value = r.subsection;
+      if (r.genre && !$("#f-genre").value) $("#f-genre").value = r.genre;
+    }
+    usualBox();
   });
 
   $("#f").onsubmit = e => {
@@ -1049,7 +1154,7 @@ function showForm(f, opts = {}){
     if (v.barcode.length === 10 && valid10(v.barcode)) v.barcode = to13(v.barcode);
     if (!v.title){ toast("Add a title first, or tap Look it up."); $("#f-title").focus(); return; }
     const fields = {title: v.title, author: v.author, kind: v.kind, section: v.section, subsection: v.subsection, genre: v.genre, publisher: v.publisher, year: v.year, barcode: v.barcode, notes: v.notes, key: keyOf(v.title, v.author)};
-    learnRule(v.author, v.section, v.genre, v.subsection);
+    learnRule(v.author, v.section, v.genre, v.subsection, v.makeUsual === "on");
     if (editing){ updateItem(opts.editId, fields); showItem(opts.editId); return; }
     const copies = Math.max(1, Math.min(99, parseInt(v.copies, 10) || 1));
     const existing = findByCode(v.barcode);

@@ -23,7 +23,7 @@ Opening it from the home-screen icon is worth doing. It runs full-screen, and on
 - **Publisher pages and covers:** take the photo with your normal camera app, then pick it from your gallery. It's read on the phone itself with Tesseract (text recognition). The first time, it downloads about 10 MB of language data, which the browser then keeps. It pulls out any ISBN (including old 9-digit SBNs), the publisher, the "first published" year and the edition. With no ISBN, it searches Open Library using the words it read and lets you pick the match.
 - **ISBNs can be typed** into the "ISBN or barcode" box, then tap Look up. If the number has a typo, it says so (the last digit is a check digit) and searches anyway.
 - **Genre and section** are first guessed from the subjects the book databases return. That's only ever rough. They don't know, for example, whether an author is a woman, so a woman's crime novel comes back as plain fiction.
-- **The app learns from you.** Whenever you save an item with a section, it remembers that author's section and genre. The next book by them fills in automatically, and the form says so. If an author writes across sections, change it on the form and the newer choice becomes the default.
+- **The app learns from you.** The first time you save a book by a new author, it remembers their section and genre, and the next book by them fills in automatically. If you later save one of their books somewhere else, the form offers a tick-box, *Make this the usual section for…*: leave it unticked for a one-off, tick it to change their usual section.
 - **Same book, different ISBN:** if a new ISBN matches a title and author you already have, it offers "Count it as another copy of that". It remembers the extra ISBN, so next time either one finds the same record.
 
 ## Share between phones (Google Sheet)
@@ -50,7 +50,6 @@ The app can keep several phones in step through a Google Sheet you own. The othe
 - Each phone checks the sheet every 45 seconds while the app is open, and straight after any change.
 - Phones send *actions* ("one in", "one out"), not whole records, so two people scanning the same book at the same time both count correctly.
 - With no signal, changes wait on the phone and send once it's back online. The status line under the totals shows if anything is waiting.
-- Deleted records stay in the sheet with a 1 in the *deleted* column, so other phones know to remove them.
 
 **Your categories live in the sheet.** Besides *Stock*, the script makes two more tabs:
 
@@ -61,7 +60,11 @@ The app can keep several phones in step through a Google Sheet you own. The othe
   - *Where it's kept* is optional, for anything not on the shop floor, such as `Storage room (upstairs)` or `Mills & Boon box`. The phone shows it in bold on the item, so whoever looks it up knows where to go.
 
   A book's section is stored written out in full, like `Adult Non-Fiction > History > Roman Britain`. Add, rename, reorder or delete rows when the shop gets rearranged, and the phones follow within a minute. Items in a removed section show "(old section)" until you change them.
-- **Authors**: which section, sub-section and genre each author's books normally go in. The app fills this in as you work, and you can correct or add rows by hand.
+- **Authors**: which section, sub-section and genre each author's books normally go in. The app adds new authors as you work (written surname-first), and you can correct or add rows by hand.
+  - Names match either way round (`Rankin, Ian` = `Ian Rankin`), and pairs in either order. Separate people with `&`; a comma on its own means surname-first.
+  - Accents, ø/æ, capitals, full stops and apostrophes are ignored, so `Carré` = `Carre` and `O'Brian` = `OBrian`. Words in brackets, like `(physicist)`, are labels for you only.
+  - *Clues* (optional): an author can have several rows. Give each extra row a few comma-separated clue words, such as series or character names, `juvenile` or `fiction`. The app checks them against the book's title and subjects. A row with no clues is that author's usual section. If nothing matches, the app leaves the section for a person to choose and says why.
+  - Anonymous, Unknown and Various never get a rule, and those books sort by title.
 
 You can also work in the *Stock* tab directly:
 
