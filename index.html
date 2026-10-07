@@ -178,7 +178,7 @@ form textarea{min-height:60px;resize:vertical}
     <button class="link" id="restore">Restore or import</button>
     <button class="link" id="csv">Download spreadsheet (CSV)</button>
     <button class="link" id="sharing">Sharing</button>
-    <span style="color:var(--muted);font-size:13px;align-self:center">Version 8</span>
+    <span style="color:var(--muted);font-size:13px;align-self:center">Version 9</span>
   </div>
 </div>
 
@@ -460,9 +460,11 @@ function suggestSection(f, subjects){
     if (/gaelic|irish language/.test(st)) return pick("Irish & Gaelic");
     if (/scots language|scottish/.test(st)) return pick("Scottish Dictionaries");
     if (/picture dictionar|visual dictionar/.test(st)) return pick("Visual Dictionaries");
-    if (/english language.*(foreign|second)|learner/.test(st)) return pick("Learner's Dictionaries");
+    // A named foreign language means two languages, so Bilingual, even when it's also catalogued as
+    // "English for Japanese speakers". Learner's is only for English-only learner's dictionaries.
     const lang = (LANGS.find(([re]) => re.test(st)) || [])[1];
     if (lang || /bilingual|polyglot/.test(st)) return pick("Bilingual Dictionaries", "Foreign", lang || "Other");
+    if (/english language.*(foreign|second)|learner/.test(st)) return pick("Learner's Dictionaries");
     return pick("English Dictionaries");
   }
   if (/english language.*(foreign|second)|\besl\b|\befl\b/.test(s)) return pick("Learner's Dictionaries");
